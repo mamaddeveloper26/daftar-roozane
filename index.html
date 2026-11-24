@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0D7377" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="دفتر روزانه" />
+  <title>دفتر روزانه</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Home -->
+    <section id="view-home" class="view active">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <span class="topbar-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="5" width="18" height="16" rx="2"/>
+              <path d="M8 3v4M16 3v4M3 11h18"/>
+            </svg>
+          </span>
+          <h1>دفتر روزانه</h1>
+        </div>
+      </header>
+
+      <div class="categories" id="categories" role="tablist"></div>
+
+      <main class="list" id="entries-list" aria-live="polite"></main>
+
+      <button type="button" class="fab" id="btn-add" aria-label="نوشته جدید">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+    </section>
+
+    <!-- Add / Edit -->
+    <section id="view-form" class="view">
+      <header class="topbar">
+        <div class="topbar-inner form-top">
+          <button type="button" class="icon-btn" id="btn-back" aria-label="بازگشت">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </button>
+          <h1 id="form-title">نوشته جدید</h1>
+        </div>
+      </header>
+
+      <form id="entry-form" class="form" autocomplete="off">
+        <label class="field">
+          <span>عنوان</span>
+          <input type="text" id="input-title" name="title" required maxlength="80" placeholder="مثلاً جلسه با تیم" />
+        </label>
+
+        <div class="field">
+          <span>دسته‌بندی</span>
+          <div class="cat-pick" id="form-categories" role="group" aria-label="دسته‌بندی"></div>
+        </div>
+
+        <label class="field">
+          <span>متن</span>
+          <textarea id="input-body" name="body" rows="5" maxlength="2000" placeholder="چه کارهایی انجام دادی؟"></textarea>
+        </label>
+
+        <div class="auto-time" id="auto-time">
+          <div class="auto-time-row">
+            <span class="auto-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+              تاریخ
+            </span>
+            <strong id="preview-date">—</strong>
+          </div>
+          <div class="auto-time-row">
+            <span class="auto-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              ساعت
+            </span>
+            <strong id="preview-time">—</strong>
+          </div>
+          <p class="auto-hint">به‌صورت خودکار ثبت می‌شود</p>
+        </div>
+
+        <button type="submit" class="btn-primary" id="btn-save">ذخیره</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
