@@ -4,7 +4,7 @@
   "private": true,
   "description": "دفترچه روزانه فارسی با پشتیبانی آفلاین",
   "scripts": {
-    "prepare:web": "mkdir -p www && cp index.html app.js styles.css manifest.json sw.js icon.svg www/",
+    "prepare:web": "mkdir -p www && cp index.html app.js styles.css manifest.json sw.js icon.svg www/ && esbuild notification-bridge.js --bundle --format=iife --outfile=www/notification-bridge.js",
     "check": "node --check app.js"
   },
   "dependencies": {
@@ -13,6 +13,7 @@
     "@capacitor/local-notifications": "^7.0.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.3"
+    "@capacitor/cli": "^7.4.3",
+    "esbuild": "^0.25.0"
   }
 }
