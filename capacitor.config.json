@@ -1,0 +1,8 @@
+{
+  "appId": "com.mamaddeveloper26.daftarroozane",
+  "appName": "دفترچه روزانه",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
