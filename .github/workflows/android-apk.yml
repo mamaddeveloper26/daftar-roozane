@@ -102,7 +102,7 @@ jobs:
           }
           '''
           if "storeFile file(System.getProperty(\"user.home\") + \"/.android/debug.keystore\")" not in source:
-              source += "\\n" + signing
+              source += "\n" + signing
           path.write_text(source, encoding="utf-8")
           PY
           keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E 'SHA256:|SHA-256'
