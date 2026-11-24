@@ -177,7 +177,7 @@
     editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
     el.title.value=note.title||"";el.body.value=note.body||"";
     el.reminderEnabled.checked=!!note.reminderAt;el.reminderFields.hidden=!note.reminderAt;
-    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=localDateValue(reminderDate);el.reminderTime.value=localTimeValue(reminderDate);}
+    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=localDateValue(reminderDate);el.reminderTime.value=localTimeValue(reminderDate);}else{el.reminderDate.value="";el.reminderTime.value="";}
     el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
     el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
     el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
@@ -221,7 +221,10 @@
       if(!confirm("بازیابی، یادداشت‌های فعلی را با اطلاعات فایل جایگزین می‌کند. ادامه می‌دهی؟"))return;
       const validItems=incoming.filter(item=>item&&typeof item==="object"&&item.id!==undefined&&item.id!==null&&String(item.id).length>0)
         .map(item=>({...item,photos:Array.isArray(item.photos)?item.photos:[],createdAt:Number(item.createdAt)||Date.now()}));
+      const previousIds=notes.flatMap(note=>Array.isArray(note.reminderNotificationIds)?note.reminderNotificationIds:[]);
       await replaceAllNotes(validItems);
+      const restoredIds=new Set(validItems.flatMap(item=>Array.isArray(item.reminderNotificationIds)?item.reminderNotificationIds:[]));
+      await cancelReminderNotifications(previousIds.filter(id=>!restoredIds.has(id)));
       await loadNotes();await reconcileReminders();showToast("بازیابی با موفقیت انجام شد");
     }catch(error){showToast(error.message||"بازیابی انجام نشد");}
     finally{$("restore-input").value="";}
@@ -253,7 +256,7 @@
       catch(error){if(newIds.length)await cancelReminderNotifications(newIds);throw error;}
       if(old?.reminderNotificationIds?.length)await cancelReminderNotifications(old.reminderNotificationIds);
       navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
-    }catch(error){showToast("ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
+    }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
   });
   el.list.addEventListener("click",async event=>{
