@@ -23,6 +23,7 @@
     body:$("note-body"), form:$("note-form"), previewDate:$("preview-date"),
     previewTime:$("preview-time"), photoInput:$("photo-input"), photoPreview:$("photo-preview"),
     formCategories:$("form-categories"), formHeading:$("form-heading"),
+    reminderEnabled:$("reminder-enabled"), reminderFields:$("reminder-fields"), reminderDate:$("reminder-date"), reminderTime:$("reminder-time"),
     save:$("save-note"), toast:$("toast"), dialog:$("image-dialog"), largeImage:$("large-image")
   };
 
@@ -32,6 +33,29 @@
   }
   function jalaliTime(date){
     return new Intl.DateTimeFormat("fa-IR",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
+  }
+  function localDateValue(date){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,"0"),d=String(date.getDate()).padStart(2,"0");return y+"-"+m+"-"+d;}
+  function localTimeValue(date){return String(date.getHours()).padStart(2,"0")+":"+String(date.getMinutes()).padStart(2,"0");}
+  function notificationPlugin(){return window.Capacitor?.Plugins?.LocalNotifications||null;}
+  function newNotificationIds(){const ids=[];while(ids.length<3){const value=crypto.getRandomValues(new Uint32Array(1))[0]%2000000000+1;if(!ids.includes(value))ids.push(value);}return ids;}
+  async function cancelReminderNotifications(ids){const plugin=notificationPlugin();if(!plugin||!Array.isArray(ids)||!ids.length)return;try{await plugin.cancel({notifications:ids.map(id=>({id}))});}catch(error){console.warn("Could not cancel reminders",error);}}
+  async function scheduleReminderNotifications(note){
+    const plugin=notificationPlugin();if(!plugin)throw new Error("برای فعال شدن یادآوری، از نسخه نصب‌شده اندروید استفاده کن");
+    let permission=await plugin.checkPermissions();if(permission.display!=="granted")permission=await plugin.requestPermissions();
+    if(permission.display!=="granted")throw new Error("مجوز اعلان‌ها فعال نشد؛ از تنظیمات گوشی اجازه اعلان بده");
+    try{await plugin.createChannel({id:"reminders",name:"یادآوری‌های دفترچه",description:"هشدار یادداشت‌های زمان‌بندی‌شده",importance:5,vibration:true,lights:true,lightColor:"#20dfd0"});}catch(error){console.warn("Notification channel setup",error);}
+    try{const exact=await plugin.checkExactNotificationSetting();if(exact.exactAlarmOption!=="granted"){await plugin.changeExactNotificationSetting();const after=await plugin.checkExactNotificationSetting();if(after.exactAlarmOption!=="granted")showToast("هشدار ممکن است با کمی تأخیر برسد؛ اجازه هشدار دقیق را در تنظیمات فعال کن");}}catch(error){console.warn("Exact alarm permission unavailable",error);}
+    const ids=newNotificationIds(),title=note.title||"یادآوری دفترچه روزانه",body=(note.body||"زمان یادآوری یادداشتت رسیده است").trim().slice(0,180);
+    const notifications=ids.map((id,index)=>({id,title,body,schedule:{at:new Date(note.reminderAt+index*8000)},channelId:"reminders",extra:{noteId:note.id}}));
+    await plugin.schedule({notifications});return ids;
+  }
+  async function reconcileReminders(){
+    const plugin=notificationPlugin();if(!plugin)return;let pending=new Set();
+    try{const result=await plugin.getPending();pending=new Set((result.notifications||[]).map(item=>item.id));}catch(error){console.warn("Could not inspect pending reminders",error);return;}
+    for(const note of notes){if(!note.reminderAt||note.reminderAt<=Date.now())continue;const ids=Array.isArray(note.reminderNotificationIds)?note.reminderNotificationIds:[];
+      if(ids.length===3&&ids.every(id=>pending.has(id)))continue;
+      try{const nextIds=await scheduleReminderNotifications(note);await storeRequest("readwrite","put",{...note,reminderNotificationIds:nextIds});note.reminderNotificationIds=nextIds;await cancelReminderNotifications(ids);}catch(error){console.warn("Could not restore reminder",note.id,error);}
+    }
   }
   function todayLabel(date){return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(date);}
   function digits(value){return String(value).replace(/[0-9]/g,d=>"۰۱۲۳۴۵۶۷۸۹"[Number(d)]);}
@@ -128,11 +152,13 @@
       const date=escapeHtml(note.dateText||jalaliDate(new Date(note.createdAt)));
       const time=escapeHtml(note.timeText||jalaliTime(new Date(note.createdAt)));
       const photos=(note.photos||[]).map((photo,index)=>`<img src="${photo.data}" alt="عکس پیوست ${index+1}" data-photo-note="${note.id}" data-photo-index="${index}" loading="lazy">`).join("");
+      const reminder=note.reminderAt?new Date(note.reminderAt):null;
       return `<article class="entry-card" data-id="${escapeHtml(note.id)}">
         <div class="entry-head"><span class="entry-category">${escapeHtml(note.category||"شخصی")}</span><div class="entry-actions"><button class="mini-action" type="button" data-action="edit" data-id="${escapeHtml(note.id)}" aria-label="ویرایش">✎</button><button class="mini-action delete" type="button" data-action="delete" data-id="${escapeHtml(note.id)}" aria-label="حذف">⌫</button></div></div>
         <h3 class="entry-title">${escapeHtml(note.title||"یادداشت")}</h3>
         ${note.body?`<p class="entry-body">${escapeHtml(note.body)}</p>`:""}
         ${photos?`<div class="entry-photos">${photos}</div>`:""}
+        ${reminder?`<div class="entry-reminder">🔔 یادآوری: ${escapeHtml(jalaliDate(reminder))} · ${escapeHtml(jalaliTime(reminder))}</div>`:""}
         <div class="entry-meta"><span>▦ ${date}</span><span>◷ ${time}</span></div>
       </article>`;
     }).join("");
@@ -140,6 +166,7 @@
 
   function clearForm(){
     el.form.reset();draftPhotos=[];formCategory="شخصی";el.photoPreview.innerHTML="";
+    el.reminderEnabled.checked=false;el.reminderFields.hidden=true;el.reminderDate.value="";el.reminderTime.value="";
     renderFormCategories();const now=tehranNow();el.previewDate.textContent=jalaliDate(now);el.previewTime.textContent=jalaliTime(now);
   }
   function openNew(){
@@ -149,6 +176,8 @@
     const note=notes.find(item=>item.id===id);if(!note)return;
     editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
     el.title.value=note.title||"";el.body.value=note.body||"";
+    el.reminderEnabled.checked=!!note.reminderAt;el.reminderFields.hidden=!note.reminderAt;
+    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=localDateValue(reminderDate);el.reminderTime.value=localTimeValue(reminderDate);}
     el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
     el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
     el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
@@ -193,7 +222,7 @@
       const validItems=incoming.filter(item=>item&&typeof item==="object"&&item.id!==undefined&&item.id!==null&&String(item.id).length>0)
         .map(item=>({...item,photos:Array.isArray(item.photos)?item.photos:[],createdAt:Number(item.createdAt)||Date.now()}));
       await replaceAllNotes(validItems);
-      await loadNotes();showToast("بازیابی با موفقیت انجام شد");
+      await loadNotes();await reconcileReminders();showToast("بازیابی با موفقیت انجام شد");
     }catch(error){showToast(error.message||"بازیابی انجام نشد");}
     finally{$("restore-input").value="";}
   }
@@ -207,6 +236,7 @@
   $("clear-search").addEventListener("click",()=>{el.search.value="";$("clear-search").style.display="none";render();});
   $("sort-button").addEventListener("click",()=>{sortNewest=!sortNewest;$("sort-button").innerHTML=sortNewest?'جدیدترین <span>⌄</span>':'قدیمی‌ترین <span>⌃</span>';render();});
   el.photoInput.addEventListener("change",event=>addPhotos(event.target.files));
+  el.reminderEnabled.addEventListener("change",()=>{el.reminderFields.hidden=!el.reminderEnabled.checked;if(el.reminderEnabled.checked&&(!el.reminderDate.value||!el.reminderTime.value)){const suggested=new Date(Date.now()+60*60*1000);el.reminderDate.value=localDateValue(suggested);el.reminderTime.value=localTimeValue(suggested);}});
   el.photoPreview.addEventListener("click",event=>{const button=event.target.closest("[data-remove-photo]");if(!button)return;draftPhotos.splice(Number(button.dataset.removePhoto),1);renderPhotoPreview();});
   el.form.addEventListener("submit",async event=>{
     event.preventDefault();const title=el.title.value.trim();const body=el.body.value.trim();
@@ -215,14 +245,20 @@
     try{
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
-      const note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
-      await persist(note);navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
+      let reminderAt=null;
+      if(el.reminderEnabled.checked){if(!el.reminderDate.value||!el.reminderTime.value)throw new Error("تاریخ و ساعت یادآوری را انتخاب کن");reminderAt=new Date(el.reminderDate.value+"T"+el.reminderTime.value+":00").getTime();if(!Number.isFinite(reminderAt)||reminderAt<=Date.now())throw new Error("زمان یادآوری باید در آینده باشد");}
+      const note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos,reminderAt,reminderNotificationIds:[]};
+      let newIds=[];
+      try{if(reminderAt)newIds=await scheduleReminderNotifications(note);note.reminderNotificationIds=newIds;await persist(note);}
+      catch(error){if(newIds.length)await cancelReminderNotifications(newIds);throw error;}
+      if(old?.reminderNotificationIds?.length)await cancelReminderNotifications(old.reminderNotificationIds);
+      navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
     }catch(error){showToast("ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
   });
   el.list.addEventListener("click",async event=>{
     const action=event.target.closest("[data-action]");
-    if(action){const id=action.dataset.id;if(action.dataset.action==="edit")openEdit(id);else if(action.dataset.action==="delete"&&confirm("این یادداشت و عکس‌های پیوست‌شده حذف شوند؟")){await removeNote(id);showToast("یادداشت حذف شد");}return;}
+    if(action){const id=action.dataset.id;if(action.dataset.action==="edit")openEdit(id);else if(action.dataset.action==="delete"&&confirm("این یادداشت و عکس‌های پیوست‌شده حذف شوند؟")){const target=notes.find(note=>note.id===id);await removeNote(id);if(target?.reminderNotificationIds?.length)await cancelReminderNotifications(target.reminderNotificationIds);showToast("یادداشت حذف شد");}return;}
     const image=event.target.closest("[data-photo-note]");
     if(image){const note=notes.find(item=>item.id===image.dataset.photoNote);const photo=note?.photos?.[Number(image.dataset.photoIndex)];if(photo){el.largeImage.src=photo.data;el.dialog.showModal();}}
   });
@@ -233,7 +269,7 @@
   async function init(){
     $("today-label").textContent="امروز · "+todayLabel(new Date());
     try{
-      db=await openDb();await migrateOldData();await loadNotes();
+      db=await openDb();await migrateOldData();await loadNotes();await reconcileReminders();
       if(navigator.storage?.persist){const persisted=await navigator.storage.persist();console.info("Persistent storage:",persisted);}
     }catch(error){console.error(error);showToast("ذخیره‌سازی گوشی در دسترس نیست؛ مرورگر را به‌روز کن");}
     if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Offline cache unavailable",error));}
