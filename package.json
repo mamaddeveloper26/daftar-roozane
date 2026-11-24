@@ -4,11 +4,13 @@
   "private": true,
   "description": "دفترچه روزانه فارسی با پشتیبانی آفلاین",
   "scripts": {
-    "prepare:web": "mkdir -p www && cp index.html app.js styles.css manifest.json sw.js icon.svg www/"
+    "prepare:web": "mkdir -p www && cp index.html app.js styles.css manifest.json sw.js icon.svg www/",
+    "check": "node --check app.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
-    "@capacitor/core": "^7.4.3"
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/local-notifications": "^7.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3"
