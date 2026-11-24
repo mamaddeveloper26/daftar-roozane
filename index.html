@@ -41,6 +41,14 @@
         <label class="field"><span>عنوان یادداشت <small>(اختیاری)</small></span><input id="note-title" maxlength="100" placeholder="مثلاً قرض دادن پول به علی"></label>
         <label class="field"><span>متن یادداشت</span><textarea id="note-body" rows="6" maxlength="6000" placeholder="هر چیزی که می‌خواهی برای آینده به خاطر بسپاری..."></textarea></label>
         <div class="field"><span>دسته‌بندی</span><div class="category-picker" id="form-categories"></div></div>
+        <section class="reminder-panel">
+          <label class="reminder-toggle"><input id="reminder-enabled" type="checkbox"><span class="reminder-checkmark">✓</span><span><strong>یادآوری این یادداشت</strong><small>در زمان مشخص‌شده با اعلان و چند هشدار صوتی خبرم کن</small></span></label>
+          <div id="reminder-fields" class="reminder-fields" hidden>
+            <label class="field"><span>تاریخ یادآوری</span><input id="reminder-date" type="date"></label>
+            <label class="field"><span>ساعت یادآوری</span><input id="reminder-time" type="time" step="60"></label>
+            <small class="reminder-note">برای این یادداشت سه هشدار پشت‌سرهم با فاصله ۸ ثانیه تنظیم می‌شود.</small>
+          </div>
+        </section>
         <div class="field"><span>عکس‌های یادداشت</span><div class="photo-tools"><label class="photo-add">＋ افزودن عکس<input id="photo-input" type="file" accept="image/*" multiple></label><span class="muted small">عکس‌ها داخل خود برنامه ذخیره می‌شوند</span></div><div id="photo-preview" class="photo-preview"></div></div>
         <div class="timestamp-panel"><div><span>تاریخ ثبت</span><strong id="preview-date">—</strong></div><div><span>ساعت ثبت</span><strong id="preview-time">—</strong></div><small>تاریخ و ساعت به‌صورت خودکار ثبت می‌شوند</small></div>
         <button class="save-button" type="submit" id="save-note">ذخیره یادداشت</button>
