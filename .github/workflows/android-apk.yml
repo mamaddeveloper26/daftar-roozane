@@ -102,6 +102,18 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)/apksigner" verify --verbose "$APK"
 
+      - name: Enforce permanent signing certificate
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)/apksigner"
+          CERTS="$("$APKSIGNER" verify --print-certs "$APK")"
+          echo "$CERTS"
+          EXPECTED="06d90eb001f1b1e585cb3cf519bd3ecc8a9fdd6add78359eb4cec6f11aa2d853"
+          echo "$CERTS" | grep -Fq "Signer #1 certificate SHA-256 digest: $EXPECTED" || {
+            echo "::error::APK signing certificate changed. Refusing to publish an incompatible update."
+            exit 1
+          }
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
