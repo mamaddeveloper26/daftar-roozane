@@ -41,7 +41,7 @@
   }
   function parseJalaliDateTime(value,time){
     const normalized=String(value).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d));
-    const match=normalized.trim().match(/^(\\d{4})\\s*[\\/.-]\\s*(\\d{1,2})\\s*[\\/.-]\\s*(\\d{1,2})$/);
+    const match=normalized.trim().match(/^(\d{4})\\s*[\\/.-]\\s*(\d{1,2})\\s*[\\/.-]\\s*(\d{1,2})$/);
     if(!match)throw new Error("تاریخ را به شکل شمسی سال/ماه/روز وارد کن؛ مثلاً ۱۴۰۵/۰۹/۰۳");
     const jy=Number(match[1]),jm=Number(match[2]),jd=Number(match[3]);
     if(jy<1300||jy>1500||jm<1||jm>12||jd<1||jd>(jm<=6?31:jm<=11?30:30))throw new Error("تاریخ شمسی معتبر نیست");
