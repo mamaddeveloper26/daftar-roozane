@@ -1,19 +1,17 @@
 {
-  "name": "دفتر روزانه",
-  "short_name": "دفتر روزانه",
-  "description": "دفتر روزانه با تاریخ شمسی و دسته‌بندی",
-  "start_url": "./index.html",
+  "id": "./",
+  "name": "دفترچه روزانه",
+  "short_name": "دفترچه",
+  "description": "دفترچه آفلاین برای ثبت یادداشت‌ها و اتفاقات روزانه",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f4f1ea",
-  "theme_color": "#0D7377",
+  "orientation": "portrait",
+  "background_color": "#071426",
+  "theme_color": "#071426",
   "lang": "fa",
   "dir": "rtl",
   "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    {"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}
   ]
 }

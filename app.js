@@ -1,297 +1,230 @@
 (() => {
-  const STORAGE_KEY = "daftar-roozane-v1";
-  const CATEGORIES = ["همه", "کار", "شخصی", "ورزش", "یادداشت"];
-  const FORM_CATEGORIES = CATEGORIES.filter((c) => c !== "همه");
-
-  const MONTHS = [
-    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
-  ];
-
-  let entries = load();
+  "use strict";
+  const DB_NAME = "daftar-roozane-db";
+  const DB_VERSION = 1;
+  const STORE = "notes";
+  const CATEGORIES = ["همه","شخصی","مالی","قرار","خرید","کار","سایر"];
+  const FORM_CATEGORIES = CATEGORIES.slice(1);
+  let db;
+  let notes = [];
   let activeCategory = "همه";
-  let formCategory = "کار";
+  let formCategory = "شخصی";
   let editingId = null;
+  let draftPhotos = [];
+  let sortNewest = true;
+  let toastTimer;
 
+  const $ = id => document.getElementById(id);
   const el = {
-    home: document.getElementById("view-home"),
-    form: document.getElementById("view-form"),
-    categories: document.getElementById("categories"),
-    formCategories: document.getElementById("form-categories"),
-    list: document.getElementById("entries-list"),
-    btnAdd: document.getElementById("btn-add"),
-    btnBack: document.getElementById("btn-back"),
-    entryForm: document.getElementById("entry-form"),
-    inputTitle: document.getElementById("input-title"),
-    inputBody: document.getElementById("input-body"),
-    previewDate: document.getElementById("preview-date"),
-    previewTime: document.getElementById("preview-time"),
-    formTitle: document.getElementById("form-title"),
-    btnSave: document.getElementById("btn-save"),
+    pages: {home:$("page-home"),form:$("page-form"),backup:$("page-backup"),about:$("page-about")},
+    nav: [...document.querySelectorAll(".nav-item")],
+    list:$("entries-list"), filters:$("category-filters"), search:$("search-input"),
+    count:$("note-count"), backupCount:$("backup-count"), title:$("note-title"),
+    body:$("note-body"), form:$("note-form"), previewDate:$("preview-date"),
+    previewTime:$("preview-time"), photoInput:$("photo-input"), photoPreview:$("photo-preview"),
+    formCategories:$("form-categories"), formHeading:$("form-heading"),
+    save:$("save-note"), toast:$("toast"), dialog:$("image-dialog"), largeImage:$("large-image")
   };
 
-  function nowTehran() {
-    return new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Tehran" })
-    );
+  function tehranNow(){ return new Date(); }
+  function jalaliDate(date){
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"long",day:"numeric"}).format(date);
   }
-
-  function toJalali(gy, gm, gd) {
-    const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-    let jy;
-    if (gy > 1600) {
-      jy = 979;
-      gy -= 1600;
-    } else {
-      jy = 0;
-      gy -= 621;
-    }
-    const gy2 = gm > 2 ? gy + 1 : gy;
-    let days =
-      365 * gy +
-      Math.floor((gy2 + 3) / 4) -
-      Math.floor((gy2 + 99) / 100) +
-      Math.floor((gy2 + 399) / 400) -
-      80 +
-      gd +
-      g_d_m[gm - 1];
-    jy += 33 * Math.floor(days / 12053);
-    days %= 12053;
-    jy += 4 * Math.floor(days / 1461);
-    days %= 1461;
-    if (days > 365) {
-      jy += Math.floor((days - 1) / 365);
-      days = (days - 1) % 365;
-    }
-    const jm =
-      days < 186
-        ? 1 + Math.floor(days / 31)
-        : 7 + Math.floor((days - 186) / 30);
-    const jd = 1 + (days < 186 ? days % 31 : (days - 186) % 30);
-    return { jy, jm, jd };
+  function jalaliTime(date){
+    return new Intl.DateTimeFormat("fa-IR",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
   }
-
-  function formatShamsi(date) {
-    const { jy, jm, jd } = toJalali(
-      date.getFullYear(),
-      date.getMonth() + 1,
-      date.getDate()
-    );
-    return `${jd} ${MONTHS[jm - 1]} ${jy}`;
+  function todayLabel(date){return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(date);}
+  function digits(value){return String(value).replace(/[0-9]/g,d=>"۰۱۲۳۴۵۶۷۸۹"[Number(d)]);}
+  function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function showToast(message){
+    el.toast.textContent=message;el.toast.classList.add("show");clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>el.toast.classList.remove("show"),2600);
   }
-
-  function formatTime(date) {
-    const h = String(date.getHours()).padStart(2, "0");
-    const m = String(date.getMinutes()).padStart(2, "0");
-    return `${h}:${m}`;
+  function openDb(){
+    return new Promise((resolve,reject)=>{
+      const request=indexedDB.open(DB_NAME,DB_VERSION);
+      request.onupgradeneeded=()=>{const database=request.result;if(!database.objectStoreNames.contains(STORE))database.createObjectStore(STORE,{keyPath:"id"});};
+      request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+    });
   }
-
-  function refreshAutoTime() {
-    const d = nowTehran();
-    el.previewDate.textContent = formatShamsi(d);
-    el.previewTime.textContent = formatTime(d);
+  function storeRequest(mode,action,value){
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,mode);const store=tx.objectStore(STORE);
+      let request;
+      if(action==="all")request=store.getAll();
+      else if(action==="put")request=store.put(value);
+      else if(action==="delete")request=store.delete(value);
+      else if(action==="clear")request=store.clear();
+      if(request){request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);}
+      else {tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);}
+    });
   }
-
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+  async function migrateOldData(){
+    const raw=localStorage.getItem("daftar-roozane-v1");
+    if(!raw)return;
+    try{
+      const old=JSON.parse(raw);
+      if(Array.isArray(old)&&old.length){
+        const current=await storeRequest("readonly","all");
+        if(!current.length){
+          for(const item of old){
+            await storeRequest("readwrite","put",{...item,photos:[],createdAt:Number(item.createdAt)||Date.now()});
+          }
+        }
+      }
+      localStorage.removeItem("daftar-roozane-v1");
+    }catch(error){console.warn("Legacy migration skipped",error);}
   }
+  async function loadNotes(){notes=await storeRequest("readonly","all");notes.sort((a,b)=>b.createdAt-a.createdAt);render();}
+  async function persist(note){await storeRequest("readwrite","put",note);const index=notes.findIndex(n=>n.id===note.id);if(index>=0)notes[index]=note;else notes.push(note);render();}
+  async function removeNote(id){await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  function navigate(page){
+    Object.entries(el.pages).forEach(([key,node])=>node.classList.toggle("active",key===page));
+    el.nav.forEach(button=>button.classList.toggle("active",button.dataset.page===page));
+    window.scrollTo({top:0,behavior:"instant"});
+    if(page==="backup"){el.backupCount.textContent=digits(notes.length);}
   }
-
-  function show(view) {
-    el.home.classList.toggle("active", view === "home");
-    el.form.classList.toggle("active", view === "form");
-    window.scrollTo(0, 0);
+  function renderFilters(){
+    el.filters.innerHTML=CATEGORIES.map(category=>`<button type="button" class="chip${category===activeCategory?" active":""}" data-filter="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("");
   }
-
-  function renderCategories() {
-    el.categories.innerHTML = CATEGORIES.map(
-      (c) =>
-        `<button type="button" class="chip${
-          c === activeCategory ? " active" : ""
-        }" data-cat="${c}">${c}</button>`
-    ).join("");
+  function renderFormCategories(){
+    el.formCategories.innerHTML=FORM_CATEGORIES.map(category=>`<button type="button" class="chip${category===formCategory?" active":""}" data-form-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("");
   }
-
-  function renderFormCategories() {
-    el.formCategories.innerHTML = FORM_CATEGORIES.map(
-      (c) =>
-        `<button type="button" class="chip${
-          c === formCategory ? " active" : ""
-        }" data-cat="${c}">${c}</button>`
-    ).join("");
+  function visibleNotes(){
+    const query=el.search.value.trim().toLocaleLowerCase("fa");
+    let result=notes.filter(note=>{
+      const categoryMatch=activeCategory==="همه"||note.category===activeCategory;
+      const text=[note.title,note.body,note.category].join(" ").toLocaleLowerCase("fa");
+      return categoryMatch&&(!query||text.includes(query));
+    });
+    result.sort((a,b)=>(sortNewest?1:-1)*(b.createdAt-a.createdAt));
+    return result;
   }
-
-  function filteredEntries() {
-    const list =
-      activeCategory === "همه"
-        ? entries.slice()
-        : entries.filter((e) => e.category === activeCategory);
-    return list.sort((a, b) => b.createdAt - a.createdAt);
-  }
-
-  function renderList() {
-    const list = filteredEntries();
-    if (!list.length) {
-      el.list.innerHTML = `
-        <div class="empty">
-          <strong>هنوز نوشته‌ای نیست</strong>
-          با دکمه + اولین نوشته را اضافه کنید
-        </div>`;
+  function render(){
+    renderFilters();
+    const filtered=visibleNotes();
+    el.count.textContent=digits(notes.length)+" یادداشت";
+    el.backupCount.textContent=digits(notes.length);
+    if(!filtered.length){
+      el.list.innerHTML=`<div class="empty-state"><div class="empty-symbol">✧</div><b>${notes.length?"چیزی پیدا نشد":"هنوز یادداشتی ثبت نکردی"}</b><span>${notes.length?"عبارت دیگری جستجو کن یا فیلتر را تغییر بده":"اولین یادداشتت را با دکمه بالا ثبت کن"}</span></div>`;
       return;
     }
-
-    el.list.innerHTML = list
-      .map((e) => {
-        const d = new Date(e.createdAt);
-        return `
-        <article class="card" data-cat="${e.category}" data-id="${e.id}">
-          <div class="card-top">
-            <span class="badge" data-cat="${e.category}">${e.category}</span>
-            <div class="card-actions">
-              <button type="button" class="mini-btn" data-action="edit" data-id="${e.id}" aria-label="ویرایش">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-                </svg>
-              </button>
-              <button type="button" class="mini-btn danger" data-action="delete" data-id="${e.id}" aria-label="حذف">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <h2>${escapeHtml(e.title)}</h2>
-          ${e.body ? `<p>${escapeHtml(e.body)}</p>` : ""}
-          <div class="card-meta">
-            <span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>
-              </svg>
-              ${e.shamsiDate || formatShamsi(d)}
-            </span>
-            <span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
-              </svg>
-              ${e.timeStr || formatTime(d)}
-            </span>
-          </div>
-        </article>`;
-      })
-      .join("");
+    el.list.innerHTML=filtered.map(note=>{
+      const date=escapeHtml(note.dateText||jalaliDate(new Date(note.createdAt)));
+      const time=escapeHtml(note.timeText||jalaliTime(new Date(note.createdAt)));
+      const photos=(note.photos||[]).map((photo,index)=>`<img src="${photo.data}" alt="عکس پیوست ${index+1}" data-photo-note="${note.id}" data-photo-index="${index}" loading="lazy">`).join("");
+      return `<article class="entry-card" data-id="${escapeHtml(note.id)}">
+        <div class="entry-head"><span class="entry-category">${escapeHtml(note.category||"شخصی")}</span><div class="entry-actions"><button class="mini-action" type="button" data-action="edit" data-id="${escapeHtml(note.id)}" aria-label="ویرایش">✎</button><button class="mini-action delete" type="button" data-action="delete" data-id="${escapeHtml(note.id)}" aria-label="حذف">⌫</button></div></div>
+        <h3 class="entry-title">${escapeHtml(note.title||"یادداشت")}</h3>
+        ${note.body?`<p class="entry-body">${escapeHtml(note.body)}</p>`:""}
+        ${photos?`<div class="entry-photos">${photos}</div>`:""}
+        <div class="entry-meta"><span>▦ ${date}</span><span>◷ ${time}</span></div>
+      </article>`;
+    }).join("");
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function clearForm(){
+    el.form.reset();draftPhotos=[];formCategory="شخصی";el.photoPreview.innerHTML="";
+    renderFormCategories();const now=tehranNow();el.previewDate.textContent=jalaliDate(now);el.previewTime.textContent=jalaliTime(now);
   }
-
-  function openNew() {
-    editingId = null;
-    formCategory = "کار";
-    el.formTitle.textContent = "نوشته جدید";
-    el.btnSave.textContent = "ذخیره";
-    el.entryForm.reset();
-    renderFormCategories();
-    refreshAutoTime();
-    show("form");
-    el.inputTitle.focus();
+  function openNew(){
+    editingId=null;clearForm();el.formHeading.textContent="یادداشت جدید";el.save.textContent="ذخیره یادداشت";navigate("form");
   }
-
-  function openEdit(id) {
-    const e = entries.find((x) => x.id === id);
-    if (!e) return;
-    editingId = id;
-    formCategory = e.category;
-    el.formTitle.textContent = "ویرایش نوشته";
-    el.btnSave.textContent = "به‌روزرسانی";
-    el.inputTitle.value = e.title;
-    el.inputBody.value = e.body || "";
-    el.previewDate.textContent = e.shamsiDate;
-    el.previewTime.textContent = e.timeStr;
-    renderFormCategories();
-    show("form");
+  function openEdit(id){
+    const note=notes.find(item=>item.id===id);if(!note)return;
+    editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
+    el.title.value=note.title||"";el.body.value=note.body||"";
+    el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
+    el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
+    el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
+    renderFormCategories();renderPhotoPreview();navigate("form");
   }
-
-  el.categories.addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-cat]");
-    if (!btn) return;
-    activeCategory = btn.dataset.cat;
-    renderCategories();
-    renderList();
-  });
-
-  el.formCategories.addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-cat]");
-    if (!btn) return;
-    formCategory = btn.dataset.cat;
-    renderFormCategories();
-  });
-
-  el.btnAdd.addEventListener("click", openNew);
-  el.btnBack.addEventListener("click", () => show("home"));
-
-  el.list.addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-action]");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (btn.dataset.action === "delete") {
-      if (confirm("این نوشته حذف شود؟")) {
-        entries = entries.filter((e) => e.id !== id);
-        save();
-        renderList();
-      }
-    } else if (btn.dataset.action === "edit") {
-      openEdit(id);
+  function renderPhotoPreview(){
+    el.photoPreview.innerHTML=draftPhotos.map((photo,index)=>`<div class="photo-thumb"><img src="${photo.data}" alt="پیش‌نمایش عکس"><button type="button" data-remove-photo="${index}" aria-label="حذف عکس">×</button></div>`).join("");
+  }
+  async function compressImage(file){
+    if(!file.type.startsWith("image/"))throw new Error("فایل انتخاب‌شده تصویر نیست");
+    const bitmap=await createImageBitmap(file);
+    const max=1500,scale=Math.min(1,max/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement("canvas");canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+    const context=canvas.getContext("2d");context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",.82));
+    if(!blob)throw new Error("فشرده‌سازی عکس انجام نشد");
+    const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);});
+    return {name:file.name,type:"image/jpeg",data};
+  }
+  async function addPhotos(files){
+    const remaining=5-draftPhotos.length;if(remaining<=0){showToast("حداکثر ۵ عکس برای هر یادداشت مجاز است");return;}
+    for(const file of [...files].slice(0,remaining)){
+      try{draftPhotos.push(await compressImage(file));}catch(error){showToast(error.message||"خطا در خواندن عکس");}
     }
-  });
-
-  el.entryForm.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    const title = el.inputTitle.value.trim();
-    const body = el.inputBody.value.trim();
-    if (!title) return;
-
-    if (editingId) {
-      const e = entries.find((x) => x.id === editingId);
-      if (e) {
-        e.title = title;
-        e.body = body;
-        e.category = formCategory;
-      }
-    } else {
-      const d = nowTehran();
-      entries.push({
-        id: crypto.randomUUID(),
-        title,
-        body,
-        category: formCategory,
-        createdAt: Date.now(),
-        shamsiDate: formatShamsi(d),
-        timeStr: formatTime(d),
-      });
-    }
-    save();
-    renderList();
-    show("home");
-  });
-
-  renderCategories();
-  renderFormCategories();
-  renderList();
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    renderPhotoPreview();el.photoInput.value="";
   }
+  function downloadFile(name,content){
+    const blob=new Blob([content],{type:"application/json"});const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+  function safeFilenameDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
+  async function exportBackup(){
+    const payload={app:"دفترچه روزانه",version:1,exportedAt:new Date().toISOString(),notes};
+    downloadFile("daftar-roozane-backup-"+safeFilenameDate()+".json",JSON.stringify(payload));
+    showToast("فایل پشتیبان آماده شد");
+  }
+  async function restoreBackup(file){
+    try{
+      const payload=JSON.parse(await file.text());const incoming=Array.isArray(payload)?payload:payload.notes;
+      if(!Array.isArray(incoming))throw new Error("ساختار فایل پشتیبان معتبر نیست");
+      if(!confirm("بازیابی، یادداشت‌های فعلی را با اطلاعات فایل جایگزین می‌کند. ادامه می‌دهی؟"))return;
+      await storeRequest("readwrite","clear");
+      for(const item of incoming){
+        if(!item||typeof item!=="object"||!item.id)continue;
+        await storeRequest("readwrite","put",{...item,photos:Array.isArray(item.photos)?item.photos:[]});
+      }
+      await loadNotes();showToast("بازیابی با موفقیت انجام شد");
+    }catch(error){showToast(error.message||"بازیابی انجام نشد");}
+    finally{$("restore-input").value="";}
+  }
+
+  el.nav.forEach(button=>button.addEventListener("click",()=>navigate(button.dataset.page)));
+  $("add-note").addEventListener("click",openNew);
+  $("form-back").addEventListener("click",()=>navigate("home"));
+  el.filters.addEventListener("click",event=>{const button=event.target.closest("[data-filter]");if(!button)return;activeCategory=button.dataset.filter;render();});
+  el.formCategories.addEventListener("click",event=>{const button=event.target.closest("[data-form-category]");if(!button)return;formCategory=button.dataset.formCategory;renderFormCategories();});
+  el.search.addEventListener("input",()=>{ $("clear-search").style.display=el.search.value?"block":"none";render();});
+  $("clear-search").addEventListener("click",()=>{el.search.value="";$("clear-search").style.display="none";render();});
+  $("sort-button").addEventListener("click",()=>{sortNewest=!sortNewest;$("sort-button").innerHTML=sortNewest?'جدیدترین <span>⌄</span>':'قدیمی‌ترین <span>⌃</span>';render();});
+  el.photoInput.addEventListener("change",event=>addPhotos(event.target.files));
+  el.photoPreview.addEventListener("click",event=>{const button=event.target.closest("[data-remove-photo]");if(!button)return;draftPhotos.splice(Number(button.dataset.removePhoto),1);renderPhotoPreview();});
+  el.form.addEventListener("submit",async event=>{
+    event.preventDefault();const title=el.title.value.trim();const body=el.body.value.trim();
+    if(!title&&!body&&!draftPhotos.length){showToast("متن یا عنوان یادداشت را وارد کن");return;}
+    el.save.disabled=true;
+    try{
+      const old=editingId?notes.find(note=>note.id===editingId):null;
+      const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
+      const note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
+      await persist(note);navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
+    }catch(error){showToast("ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
+    finally{el.save.disabled=false;}
+  });
+  el.list.addEventListener("click",async event=>{
+    const action=event.target.closest("[data-action]");
+    if(action){const id=action.dataset.id;if(action.dataset.action==="edit")openEdit(id);else if(action.dataset.action==="delete"&&confirm("این یادداشت و عکس‌های پیوست‌شده حذف شوند؟")){await removeNote(id);showToast("یادداشت حذف شد");}return;}
+    const image=event.target.closest("[data-photo-note]");
+    if(image){const note=notes.find(item=>item.id===image.dataset.photoNote);const photo=note?.photos?.[Number(image.dataset.photoIndex)];if(photo){el.largeImage.src=photo.data;el.dialog.showModal();}}
+  });
+  $("close-image").addEventListener("click",()=>el.dialog.close());
+  $("export-backup").addEventListener("click",exportBackup);
+  $("restore-input").addEventListener("change",event=>{if(event.target.files[0])restoreBackup(event.target.files[0]);});
+
+  async function init(){
+    $("today-label").textContent="امروز · "+todayLabel(new Date());
+    try{
+      db=await openDb();await migrateOldData();await loadNotes();
+      if(navigator.storage?.persist){const persisted=await navigator.storage.persist();console.info("Persistent storage:",persisted);}
+    }catch(error){console.error(error);showToast("ذخیره‌سازی گوشی در دسترس نیست؛ مرورگر را به‌روز کن");}
+    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Offline cache unavailable",error));}
+  }
+  init();
 })();

@@ -1,11 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
-  <rect width="128" height="128" rx="28" fill="#0D7377"/>
-  <rect x="28" y="30" width="72" height="72" rx="12" fill="#fff"/>
-  <rect x="28" y="30" width="72" height="22" rx="12" fill="#E6F4F4"/>
-  <rect x="28" y="42" width="72" height="10" fill="#E6F4F4"/>
-  <circle cx="44" cy="36" r="4" fill="#0D7377"/>
-  <circle cx="84" cy="36" r="4" fill="#0D7377"/>
-  <rect x="40" y="58" width="48" height="6" rx="3" fill="#0D7377" opacity="0.35"/>
-  <rect x="40" y="72" width="36" height="6" rx="3" fill="#0D7377" opacity="0.25"/>
-  <rect x="40" y="86" width="28" height="6" rx="3" fill="#0D7377" opacity="0.18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12365d"/><stop offset="1" stop-color="#061326"/></linearGradient><linearGradient id="p" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#20e4d3"/><stop offset="1" stop-color="#148dff"/></linearGradient><filter id="s"><feGaussianBlur stdDeviation="14"/></filter></defs>
+<rect width="512" height="512" rx="112" fill="url(#b)"/><circle cx="255" cy="255" r="188" fill="#08d8ce" opacity=".12" filter="url(#s)"/>
+<path d="M132 111c0-18 15-33 33-33h183c18 0 33 15 33 33v286c0 19-15 34-34 34H165c-18 0-33-15-33-34z" fill="#eaf4ff"/>
+<path d="M132 145h249v54H132z" fill="#173c67"/><path d="M183 91v77M330 91v77" stroke="#20e4d3" stroke-width="19" stroke-linecap="round"/>
+<path d="M177 244h155M177 294h155M177 344h104" stroke="#a5b8d0" stroke-width="17" stroke-linecap="round"/>
+<path d="m309 351 87-165c8-15 29-20 43-10s19 29 10 44l-91 157-65 35z" fill="url(#p)"/><path d="m293 412 16-61 49 29z" fill="#f0b65a"/>
+<circle cx="177" cy="171" r="11" fill="#20e4d3"/><circle cx="334" cy="171" r="11" fill="#20e4d3"/>
 </svg>
