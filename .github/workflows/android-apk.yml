@@ -35,6 +35,9 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Check JavaScript syntax
+        run: npm run check
+
       - name: Prepare offline web assets
         run: npm run prepare:web
 
@@ -56,7 +59,7 @@ jobs:
           ]
           for permission in permissions:
               if permission not in source:
-                  source = source.replace("    <application", permission + "\\n    <application", 1)
+                  source = source.replace("    <application", permission + "\n    <application", 1)
           path.write_text(source, encoding="utf-8")
           PY
           grep -q 'android.permission.POST_NOTIFICATIONS' android/app/src/main/AndroidManifest.xml
