@@ -50,13 +50,27 @@
   function storeRequest(mode,action,value){
     return new Promise((resolve,reject)=>{
       const tx=db.transaction(STORE,mode);const store=tx.objectStore(STORE);
+      let result;
       let request;
       if(action==="all")request=store.getAll();
       else if(action==="put")request=store.put(value);
       else if(action==="delete")request=store.delete(value);
       else if(action==="clear")request=store.clear();
-      if(request){request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);}
-      else {tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);}
+      if(request){request.onsuccess=()=>{result=request.result;};request.onerror=()=>reject(request.error);}
+      tx.oncomplete=()=>resolve(result);
+      tx.onerror=()=>reject(tx.error||new Error("IndexedDB transaction failed"));
+      tx.onabort=()=>reject(tx.error||new Error("IndexedDB transaction aborted"));
+    });
+  }
+  function replaceAllNotes(items){
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction(STORE,"readwrite");
+      const store=tx.objectStore(STORE);
+      store.clear();
+      for(const item of items) store.put(item);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error||new Error("Backup restore failed"));
+      tx.onabort=()=>reject(tx.error||new Error("Backup restore aborted"));
     });
   }
   async function migrateOldData(){
@@ -176,11 +190,9 @@
       const payload=JSON.parse(await file.text());const incoming=Array.isArray(payload)?payload:payload.notes;
       if(!Array.isArray(incoming))throw new Error("ساختار فایل پشتیبان معتبر نیست");
       if(!confirm("بازیابی، یادداشت‌های فعلی را با اطلاعات فایل جایگزین می‌کند. ادامه می‌دهی؟"))return;
-      await storeRequest("readwrite","clear");
-      for(const item of incoming){
-        if(!item||typeof item!=="object"||!item.id)continue;
-        await storeRequest("readwrite","put",{...item,photos:Array.isArray(item.photos)?item.photos:[]});
-      }
+      const validItems=incoming.filter(item=>item&&typeof item==="object"&&item.id!==undefined&&item.id!==null&&String(item.id).length>0)
+        .map(item=>({...item,photos:Array.isArray(item.photos)?item.photos:[],createdAt:Number(item.createdAt)||Date.now()}));
+      await replaceAllNotes(validItems);
       await loadNotes();showToast("بازیابی با موفقیت انجام شد");
     }catch(error){showToast(error.message||"بازیابی انجام نشد");}
     finally{$("restore-input").value="";}
