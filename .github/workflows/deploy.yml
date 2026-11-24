@@ -21,8 +21,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Check JavaScript syntax
-        run: node --check app.js
+        run: npm run check
+      - name: Build offline web assets
+        run: npm run prepare:web
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
@@ -30,7 +38,7 @@ jobs:
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: ./www
   deploy:
     if: ${{ vars.ENABLE_GITHUB_PAGES == 'true' }}
     environment:
