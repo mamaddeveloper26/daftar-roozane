@@ -65,7 +65,7 @@ jobs:
           import os, re
           path = "android/app/build.gradle"
           source = open(path, encoding="utf-8").read()
-          updated, count = re.subn(r"versionCode\\s+\\d+", "versionCode " + os.environ["BUILD_NUMBER"], source, count=1)
+          updated, count = re.subn(r"versionCode\s+\d+", "versionCode " + os.environ["BUILD_NUMBER"], source, count=1)
           if count != 1:
               raise SystemExit("Could not find exactly one versionCode in android/app/build.gradle")
           open(path, "w", encoding="utf-8").write(updated)
