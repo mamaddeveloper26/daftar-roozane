@@ -36,7 +36,7 @@
   }
   function localDateValue(date){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,"0"),d=String(date.getDate()).padStart(2,"0");return y+"-"+m+"-"+d;}
   function localTimeValue(date){return String(date.getHours()).padStart(2,"0")+":"+String(date.getMinutes()).padStart(2,"0");}
-  function notificationPlugin(){return window.Capacitor?.Plugins?.LocalNotifications||null;}
+  function notificationPlugin(){return window.LocalNotifications||null;}
   function newNotificationIds(){const ids=[];while(ids.length<3){const value=crypto.getRandomValues(new Uint32Array(1))[0]%2000000000+1;if(!ids.includes(value))ids.push(value);}return ids;}
   async function cancelReminderNotifications(ids){const plugin=notificationPlugin();if(!plugin||!Array.isArray(ids)||!ids.length)return;try{await plugin.cancel({notifications:ids.map(id=>({id}))});}catch(error){console.warn("Could not cancel reminders",error);}}
   async function scheduleReminderNotifications(note){
