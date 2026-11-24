@@ -78,6 +78,35 @@ jobs:
           test -s "$HOME/.android/debug.keystore"
           chmod 600 "$HOME/.android/debug.keystore"
 
+      - name: Configure Gradle to use the persistent signing key
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          source = path.read_text(encoding="utf-8")
+          signing = '''
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file(System.getProperty("user.home") + "/.android/debug.keystore")
+                      storePassword "android"
+                      keyAlias "androiddebugkey"
+                      keyPassword "android"
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          '''
+          if "storeFile file(System.getProperty(\"user.home\") + \"/.android/debug.keystore\")" not in source:
+              source += "\\n" + signing
+          path.write_text(source, encoding="utf-8")
+          PY
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E 'SHA256:|SHA-256'
+
       - name: Increase Android version code
         env:
           BUILD_NUMBER: ${{ github.run_number }}
