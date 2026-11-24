@@ -44,7 +44,7 @@
         <section class="reminder-panel">
           <label class="reminder-toggle"><input id="reminder-enabled" type="checkbox"><span class="reminder-checkmark">✓</span><span><strong>یادآوری این یادداشت</strong><small>در زمان مشخص‌شده با اعلان و چند هشدار صوتی خبرم کن</small></span></label>
           <div id="reminder-fields" class="reminder-fields" hidden>
-            <label class="field"><span>تاریخ یادآوری</span><input id="reminder-date" type="date"></label>
+            <label class="field"><span>تاریخ یادآوری</span><input id="reminder-date" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="۱۴۰۵/۰۹/۰۳" aria-label="تاریخ شمسی به شکل سال/ماه/روز"></label>
             <label class="field"><span>ساعت یادآوری</span><input id="reminder-time" type="time" step="60"></label>
             <small class="reminder-note">برای این یادداشت سه هشدار پشت‌سرهم با فاصله ۸ ثانیه تنظیم می‌شود.</small>
           </div>
