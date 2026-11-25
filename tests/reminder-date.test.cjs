@@ -15,13 +15,39 @@ const window = {};
 const Option = function(text,value) { this.text=text; this.value=value; };
 const source = fs.readFileSync("reminders.js","utf8");
 vm.runInNewContext(source,{window,document,Intl,Date,Number,String,Math,Array,Object,Error,console,Option});
-const jalali = window.DiaryReminder;
-function iso(y,m,d) { const x=jalali.toGregorian(y,m,d); return [x.year,String(x.month+1).padStart(2,"0"),String(x.day).padStart(2,"0")].join("-"); }
+const api = window.DiaryReminder;
+function iso(y,m,d) { const x=api.toGregorian(y,m,d); return [x.year,String(x.month+1).padStart(2,"0"),String(x.day).padStart(2,"0")].join("-"); }
 assert.equal(iso(1405,1,1),"2026-03-21");
 assert.equal(iso(1405,1,13),"2026-04-02");
 assert.equal(iso(1405,6,31),"2026-09-22");
 assert.equal(iso(1405,7,1),"2026-09-23");
-assert.equal(jalali.monthLength(1403,12),30);
-assert.equal(jalali.monthLength(1404,12),29);
-assert.throws(()=>jalali.toGregorian(1404,12,30),/تاریخ شمسی معتبر نیست/);
-console.log("Jalali date conversion tests passed (Nowruz, month boundaries, leap and non-leap Esfand, invalid date).");
+assert.equal(api.monthLength(1403,12),30);
+assert.equal(api.monthLength(1404,12),29);
+assert.throws(()=>api.toGregorian(1404,12,30),/تاریخ شمسی معتبر نیست/);
+
+(async()=>{
+  let scheduled=null, cancelled=null;
+  window.LocalNotifications={
+    checkPermissions:async()=>({display:"granted"}),
+    requestPermissions:async()=>({display:"granted"}),
+    checkExactNotificationSetting:async()=>({exactAlarm:"granted"}),
+    createChannel:async()=>{},
+    schedule:async options=>{scheduled=options.notifications[0];return {notifications:[{id:scheduled.id}]}},
+    cancel:async options=>{cancelled=options.notifications[0].id}
+  };
+  document.getElementById("reminder-enabled").checked=true;
+  document.getElementById("reminder-hour").value="23";
+  document.getElementById("reminder-minute").value="59";
+  api.setDate({year:1405,month:10,day:1});
+  const note=await api.apply({id:"test-note-1",title:"آزمون",body:"اعلان آزمایشی"},null);
+  assert.ok(note.reminderAt>Date.now());
+  assert.equal(scheduled.id,note.reminderNotificationId);
+  assert.equal(scheduled.schedule.at.getTime(),note.reminderAt);
+  assert.equal(scheduled.schedule.allowWhileIdle,true);
+  assert.match(note.reminderText,/۱۴۰۵/);
+  document.getElementById("reminder-enabled").checked=false;
+  const cleared=await api.apply({...note},note);
+  assert.equal(cancelled,note.reminderNotificationId);
+  assert.equal(cleared.reminderAt,undefined);
+  console.log("Jalali calendar and local-notification scheduling tests passed.");
+})().catch(error=>{console.error(error);process.exitCode=1;});
