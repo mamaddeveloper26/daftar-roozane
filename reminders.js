@@ -102,12 +102,21 @@
       catch(e) { throw new Error("مرحله دریافت مجوز: "+e.message); }
     }
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Do not open Android's "Alarms & reminders" settings screen.
-    // Capacitor Local Notifications v7 falls back to an inexact alarm when exact
-    // alarm access is unavailable, so the reminder can still be delivered.
+    // Verify the real Android exact-alarm app-op. A saved pending notification
+    // is not proof that AlarmManager accepted an exact alarm.
+    if(typeof plugin.checkExactNotificationSetting!=="function")
+      throw new Error("افزونه امکان بررسی مجوز آلارم دقیق اندروید را ندارد");
+    let exact;
+    try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
+    catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
+    const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
+    if(exactStatus!=="granted")
+      throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
+    // Do not silently continue if the channel cannot be created: on Android 8+
+    // a notification posted to a missing channel cannot be displayed.
     try {
-      await withTimeout(plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}),"ساخت کانال اعلان",8000);
-    } catch(e) { console.warn("Notification channel setup failed",e); }
+      await withTimeout(plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:4,vibration:true}),"ساخت کانال اعلان",8000);
+    } catch(e) { throw new Error("مرحله ساخت کانال اعلان: "+(e.message||"خطای نامشخص")); }
     return plugin;
   }
   async function cancel(note) {
@@ -182,7 +191,14 @@
       note.reminderError="اجازه نمایش اعلان در تنظیمات گوشی فعال نیست";
       return note;
     }
-    // Exact-alarm access is optional in plugin v7; Android can still schedule an inexact alarm.
+    if(typeof plugin.checkExactNotificationSetting==="function") {
+      const exact=await plugin.checkExactNotificationSetting();
+      if((exact?.exact_alarm ?? exact?.exactAlarm)!=="granted") {
+        note.reminderEnabled=true;note.reminderStatus="permission_required";
+        note.reminderError="دسترسی آلارم دقیق اندروید فعال نیست";
+        return note;
+      }
+    }
     const id=note.reminderNotificationId || idFor(note.id);
     const pending=await plugin.getPending();
     if(pending.notifications.some(item=>item.id===id)) {
