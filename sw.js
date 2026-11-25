@@ -1,5 +1,5 @@
-const CACHE_NAME = "daftar-roozane-v42";
-const CORE = ["./", "./index.html", "./styles.css?v=42", "./app.js?v=42", "./manifest.json", "./icon.svg", "./notification-bridge.js", "./reminders.js?v=42"];
+const CACHE_NAME = "daftar-roozane-v43";
+const CORE = ["./", "./index.html", "./styles.css?v=43", "./app.js?v=43", "./manifest.json", "./icon.svg", "./notification-bridge.js", "./reminders.js?v=43"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE)));
   self.skipWaiting();
