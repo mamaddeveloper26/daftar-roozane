@@ -82,7 +82,7 @@
       }
       if(exact.exactAlarm!=="granted") throw new Error("برای اعلان سرِ وقت، اجازه «هشدارها و یادآورها» را فعال کن");
     }
-    try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5}); } catch(e) { console.warn("Notification channel",e); }
+    try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}); } catch(e) { console.warn("Notification channel",e); }
     return plugin;
   }
   async function cancel(note) {
@@ -166,6 +166,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule};
+  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule,toGregorian,monthLength};
   init();
 })();
