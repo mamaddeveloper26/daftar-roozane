@@ -36,7 +36,21 @@
   function timestamp() {
     if (!selected) return null;
     const g = toGregorian(selected.year, selected.month, selected.day);
-    return new Date(g.year,g.month,g.day,Number(hour.value),Number(minute.value),0,0).getTime();
+    const wanted = Date.UTC(g.year,g.month,g.day,Number(hour.value),Number(minute.value),0,0);
+    // Convert the selected Tehran wall-clock time to an absolute timestamp.
+    // Do not rely on the phone's current timezone being Asia/Tehran.
+    let instant = wanted;
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",
+      hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"
+    });
+    for (let i=0;i<3;i++) {
+      const p=formatter.formatToParts(new Date(instant));
+      const get=type=>Number(p.find(x=>x.type===type)?.value);
+      const shown=Date.UTC(get("year"),get("month")-1,get("day"),get("hour"),get("minute"),get("second"));
+      instant += wanted-shown;
+    }
+    return instant;
   }
   function updateSummary() {
     summary.textContent = selected ? ("یادآوری در " + dateText(selected) + " ساعت " + digits(hour.value + ":" + minute.value)) : "تاریخ و ساعت یادآوری را انتخاب کن.";
@@ -159,7 +173,18 @@
     for(let n=0;n<24;n++) hour.add(new Option(digits(String(n).padStart(2,"0")),String(n).padStart(2,"0")));
     for(let n=0;n<60;n++) minute.add(new Option(digits(String(n).padStart(2,"0")),String(n).padStart(2,"0")));
     hour.addEventListener("change",updateSummary);minute.addEventListener("change",updateSummary);
-    enabled.addEventListener("change",()=>{fields.hidden=!enabled.checked;if(enabled.checked&&!selected)setDate(parts(new Date()));updateSummary();});
+    enabled.addEventListener("change",()=>{
+      fields.hidden=!enabled.checked;
+      if(enabled.checked&&!selected){
+        // Default to five minutes from now so the first save is not already in the past.
+        const future=new Date(Date.now()+5*60*1000);
+        setDate(parts(future));
+        const timeParts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(future);
+        const get=type=>timeParts.find(x=>x.type===type)?.value||"00";
+        hour.value=get("hour");minute.value=get("minute");
+      }
+      updateSummary();
+    });
     dateButton.addEventListener("click",openCalendar);
     $("calendar-prev").addEventListener("click",()=>{viewMonth--;if(viewMonth<1){viewMonth=12;viewYear--;}renderCalendar();});
     $("calendar-next").addEventListener("click",()=>{viewMonth++;if(viewMonth>12){viewMonth=1;viewYear++;}renderCalendar();});
