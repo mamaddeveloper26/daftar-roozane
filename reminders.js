@@ -88,7 +88,16 @@
     let permission=await plugin.checkPermissions();
     if(permission.display!=="granted") permission=await plugin.requestPermissions();
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Exact-alarm access is optional: Android's AlarmManager falls back to an inexact alarm when unavailable.
+    // Android 12+ has a separate, user-controlled exact-alarm permission.
+    if(typeof plugin.checkExactNotificationSetting==="function") {
+      let exact=await plugin.checkExactNotificationSetting();
+      if(exact?.exactAlarm!=="granted" && typeof plugin.changeExactNotificationSetting==="function") {
+        await plugin.changeExactNotificationSetting();
+        exact=await plugin.checkExactNotificationSetting();
+      }
+      if(exact?.exactAlarm && exact.exactAlarm!=="granted")
+        throw new Error("مجوز «هشدارها و یادآورها» برای برنامه فعال نیست؛ از تنظیمات گوشی آن را فعال کن");
+    }
     try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}); } catch(e) { console.warn("Notification channel",e); }
     return plugin;
   }
@@ -138,6 +147,11 @@
     }]});
     if(!result || !Array.isArray(result.notifications) || !result.notifications.some(x=>x.id===id))
       throw new Error("گوشی ثبت اعلان را تأیید نکرد");
+    if(typeof plugin.getPending==="function") {
+      const pending=await plugin.getPending();
+      if(!pending?.notifications?.some(x=>x.id===id))
+        throw new Error("اعلان در فهرست یادآوری‌های ثبت‌شدهٔ اندروید پیدا نشد");
+    }
     note.reminderAt=at;
     note.reminderText=reminderText(at);
     note.reminderNotificationId=id;
