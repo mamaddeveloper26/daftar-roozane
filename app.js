@@ -52,8 +52,11 @@
     if(jy<1300||jy>1500||jm<1||jm>12||jd<1||jd>31)throw new Error("تاریخ شمسی معتبر نیست");
     const formatter=new Intl.DateTimeFormat("en-US-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"numeric",day:"numeric"});
     let found=null;
-    for(let offset=0;offset<35;offset++){
-      const candidate=new Date(Date.UTC(jy+621,2,10+offset,12));
+    // A Persian year spans about 365/366 days. Search the complete year,
+    // not only the first month, so dates such as 1405/09/04 are accepted.
+    const startUtc=Date.UTC(jy+621,2,15,12);
+    for(let offset=0;offset<380;offset++){
+      const candidate=new Date(startUtc+offset*86400000);
       const parts=formatter.formatToParts(candidate);
       const get=type=>Number(parts.find(part=>part.type===type)?.value);
       if(get("year")===jy&&get("month")===jm&&get("day")===jd){found=candidate;break;}
