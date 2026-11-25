@@ -230,8 +230,15 @@
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
       let note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
-      // Capture reminder controls now, but never wait for Android notifications before saving.
-      const reminderConfig=window.DiaryReminder.capture();
+      // Reminder form parsing must never be able to block saving the diary entry.
+      let reminderConfig={enabled:$("reminder-enabled").checked,at:null};
+      let reminderCaptureError=null;
+      try{
+        reminderConfig=window.DiaryReminder.capture();
+      }catch(error){
+        reminderCaptureError=error;
+        console.error("Reminder capture failed; saving note without changing reminder",error);
+      }
       if(reminderConfig.enabled&&old&&old.reminderAt){
         note.reminderAt=old.reminderAt;
         note.reminderText=old.reminderText;
@@ -240,6 +247,10 @@
       await persist(note);
       navigate("home");
       showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
+      if(reminderCaptureError){
+        showToast("یادداشت ذخیره شد؛ خواندن تنظیم یادآوری ناموفق بود");
+        return;
+      }
       // Schedule/cancel notifications only after the diary entry is safely stored.
       window.DiaryReminder.apply(note,old,reminderConfig).then(async updatedNote=>{
         await persist(updatedNote);
