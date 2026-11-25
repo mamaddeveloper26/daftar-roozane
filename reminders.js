@@ -114,7 +114,13 @@
   }
   function capture() {
     const isEnabled=enabled.checked;
-    return {enabled:isEnabled,at:isEnabled?timestamp():null};
+    if(!isEnabled)return {enabled:false,at:null};
+    try {
+      return {enabled:true,at:timestamp()};
+    } catch(error) {
+      // A malformed/unavailable calendar value must not prevent the note itself from being saved.
+      return {enabled:true,at:null,error:error?.message||"تاریخ یا ساعت یادآوری معتبر نیست"};
+    }
   }
   async function apply(note, old, config) {
     const reminder=config||capture();
@@ -123,6 +129,7 @@
       delete note.reminderAt;delete note.reminderText;delete note.reminderNotificationId;
       return note;
     }
+    if(reminder.error) throw new Error("تاریخ یا ساعت یادآوری معتبر نیست: "+reminder.error);
     const at=reminder.at;
     if(!at || at<=Date.now()) throw new Error("زمان یادآوری باید در آینده باشد");
     const plugin=await pluginWithPermissions();
