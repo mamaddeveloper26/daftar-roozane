@@ -96,15 +96,11 @@
   }
   async function loadNotes(){
     const loaded=await storeRequest("readonly","all");
-    const legacyIds=loaded.flatMap(note=>Array.isArray(note.reminderNotificationIds)?note.reminderNotificationIds:[]);
-    const plugin=window.LocalNotifications;
-    if(plugin&&legacyIds.length){try{await plugin.cancel({notifications:legacyIds.map(id=>({id}))});}catch(error){console.warn("Could not clear old scheduled alerts",error);}}
-    notes=loaded.map(note=>{const clean={...note};delete clean.reminderAt;delete clean.reminderNotificationIds;return clean;});
-    if(legacyIds.length||loaded.some(note=>Object.prototype.hasOwnProperty.call(note,"reminderAt")||Object.prototype.hasOwnProperty.call(note,"reminderNotificationIds"))){for(const note of notes)await storeRequest("readwrite","put",note);}
+    notes=loaded.map(note=>({...note}));
     notes.sort((a,b)=>b.createdAt-a.createdAt);render();
   }
   async function persist(note){await storeRequest("readwrite","put",note);const index=notes.findIndex(n=>n.id===note.id);if(index>=0)notes[index]=note;else notes.push(note);render();}
-  async function removeNote(id){await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
+  async function removeNote(id){const note=notes.find(n=>n.id===id);if(note)await window.DiaryReminder.cancel(note);await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
 
   function navigate(page){
     Object.entries(el.pages).forEach(([key,node])=>node.classList.toggle("active",key===page));
@@ -146,13 +142,14 @@
         <h3 class="entry-title">${escapeHtml(note.title||"یادداشت")}</h3>
         ${note.body?`<p class="entry-body">${escapeHtml(note.body)}</p>`:""}
         ${photos?`<div class="entry-photos">${photos}</div>`:""}
+        ${window.DiaryReminder.render(note)}
         <div class="entry-meta"><span>▦ ${date}</span><span>◷ ${time}</span></div>
       </article>`;
     }).join("");
   }
 
   function clearForm(){
-    el.form.reset();draftPhotos=[];formCategory="شخصی";el.photoPreview.innerHTML="";
+    el.form.reset();draftPhotos=[];formCategory="شخصی";el.photoPreview.innerHTML="";window.DiaryReminder.reset();
     renderFormCategories();const now=tehranNow();el.previewDate.textContent=jalaliDate(now);el.previewTime.textContent=jalaliTime(now);
   }
   function openNew(){
@@ -161,7 +158,7 @@
   function openEdit(id){
     const note=notes.find(item=>item.id===id);if(!note)return;
     editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
-    el.title.value=note.title||"";el.body.value=note.body||"";
+    el.title.value=note.title||"";el.body.value=note.body||"";window.DiaryReminder.load(note);
     el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
     el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
     el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
@@ -205,9 +202,11 @@
       if(!confirm("بازیابی، یادداشت‌های فعلی را با اطلاعات فایل جایگزین می‌کند. ادامه می‌دهی؟"))return;
       const validItems=incoming.filter(item=>item&&typeof item==="object"&&item.id!==undefined&&item.id!==null&&String(item.id).length>0)
         .map(item=>({...item,photos:Array.isArray(item.photos)?item.photos:[],createdAt:Number(item.createdAt)||Date.now()}));
-      const cleanItems=validItems.map(({reminderAt,reminderNotificationIds,...item})=>item);
-      await replaceAllNotes(cleanItems);
-      await loadNotes();showToast("بازیابی با موفقیت انجام شد");
+      for(const existing of notes)await window.DiaryReminder.cancel(existing);
+      await replaceAllNotes(validItems);
+      await loadNotes();
+      for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.apply({...note},note);await storeRequest("readwrite","put",restored); }catch(error){console.warn("Reminder restore failed",error);}}}
+      showToast("بازیابی با موفقیت انجام شد");
     }catch(error){showToast(error.message||"بازیابی انجام نشد");}
     finally{$("restore-input").value="";}
   }
@@ -229,7 +228,8 @@
     try{
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
-      const note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
+      let note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
+      note=await window.DiaryReminder.apply(note,old);
       await persist(note);
       navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
@@ -251,7 +251,7 @@
       db=await openDb();await migrateOldData();await loadNotes();
       if(navigator.storage?.persist){const persisted=await navigator.storage.persist();console.info("Persistent storage:",persisted);}
     }catch(error){console.error(error);showToast("ذخیره‌سازی گوشی در دسترس نیست؛ مرورگر را به‌روز کن");}
-    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=41").catch(error=>console.warn("Offline cache unavailable",error));}
+    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=42").catch(error=>console.warn("Offline cache unavailable",error));}
   }
   init();
 })();
