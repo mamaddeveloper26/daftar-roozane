@@ -98,6 +98,7 @@
     const loaded=await storeRequest("readonly","all");
     notes=loaded.map(note=>({...note}));
     notes.sort((a,b)=>b.createdAt-a.createdAt);render();
+    for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.reschedule(note);if(restored)await storeRequest("readwrite","put",restored);}catch(error){console.warn("Pending reminder recovery failed",error);}}}
   }
   async function persist(note){await storeRequest("readwrite","put",note);const index=notes.findIndex(n=>n.id===note.id);if(index>=0)notes[index]=note;else notes.push(note);render();}
   async function removeNote(id){const note=notes.find(n=>n.id===id);if(note)await window.DiaryReminder.cancel(note);await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
@@ -205,7 +206,7 @@
       for(const existing of notes)await window.DiaryReminder.cancel(existing);
       await replaceAllNotes(validItems);
       await loadNotes();
-      for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.apply({...note},note);await storeRequest("readwrite","put",restored); }catch(error){console.warn("Reminder restore failed",error);}}}
+      for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.reschedule(note);await storeRequest("readwrite","put",restored);}catch(error){console.warn("Reminder restore failed",error);}}}
       showToast("بازیابی با موفقیت انجام شد");
     }catch(error){showToast(error.message||"بازیابی انجام نشد");}
     finally{$("restore-input").value="";}
