@@ -74,14 +74,7 @@
     let permission=await plugin.checkPermissions();
     if(permission.display!=="granted") permission=await plugin.requestPermissions();
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    if(plugin.checkExactNotificationSetting){
-      let exact=await plugin.checkExactNotificationSetting();
-      if(exact.exactAlarm!=="granted"){
-        await plugin.changeExactNotificationSetting();
-        exact=await plugin.checkExactNotificationSetting();
-      }
-      if(exact.exactAlarm!=="granted") throw new Error("برای اعلان سرِ وقت، اجازه «هشدارها و یادآورها» را فعال کن");
-    }
+    // Exact-alarm access is optional: Android's AlarmManager falls back to an inexact alarm when unavailable.
     try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}); } catch(e) { console.warn("Notification channel",e); }
     return plugin;
   }
@@ -111,10 +104,7 @@
     const plugin=window.LocalNotifications;
     const permission=await plugin.checkPermissions();
     if(permission.display!=="granted") return note;
-    if(plugin.checkExactNotificationSetting){
-      const exact=await plugin.checkExactNotificationSetting();
-      if(exact.exactAlarm!=="granted") return note;
-    }
+    // Recreate reminders even without exact-alarm access; Android will use an inexact alarm.
     const id=note.reminderNotificationId || idFor(note.id);
     const pending=await plugin.getPending();
     if(pending.notifications.some(item=>item.id===id)) return note;
