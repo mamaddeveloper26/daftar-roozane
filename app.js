@@ -239,12 +239,13 @@
         reminderCaptureError=error;
         console.error("Reminder capture failed; saving note without changing reminder",error);
       }
-      if(!reminderCaptureError) window.DiaryReminder.prepare(note,old,reminderConfig);
-      else if(old && (old.reminderEnabled || old.reminderAt)) {
-        note.reminderEnabled=true;note.reminderAt=old.reminderAt;note.reminderText=old.reminderText;
-        note.reminderNotificationId=old.reminderNotificationId;note.reminderStatus=old.reminderStatus;
-        note.reminderError=old.reminderError;
+      // Always persist the checkbox state, even if reading the selected date/time fails.
+      if(reminderCaptureError) {
+        reminderConfig.enabled=$("reminder-enabled").checked;
+        reminderConfig.at=null;
+        reminderConfig.error=reminderCaptureError.message||"خواندن تاریخ و ساعت یادآوری ناموفق بود";
       }
+      window.DiaryReminder.prepare(note,old,reminderConfig);
       await persist(note);
       navigate("home");
       showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
