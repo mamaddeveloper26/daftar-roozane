@@ -82,16 +82,30 @@
     for(let i=0;i<id.length;i++){hash^=id.charCodeAt(i);hash=Math.imul(hash,16777619);}
     return ((hash>>>0)&0x7fffffff)||1;
   }
+  function withTimeout(promise, label, ms=12000) {
+    let timer;
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" بیش از "+Math.round(ms/1000)+" ثانیه پاسخ نداد")),ms);})
+    ]).finally(()=>clearTimeout(timer));
+  }
   async function pluginWithPermissions() {
     const plugin=window.LocalNotifications;
     if(!plugin) throw new Error("یادآوری فقط در نسخه نصب‌شده اندروید فعال است");
-    let permission=await plugin.checkPermissions();
-    if(permission.display!=="granted") permission=await plugin.requestPermissions();
+    let permission;
+    try { permission=await withTimeout(plugin.checkPermissions(),"بررسی مجوز اعلان"); }
+    catch(e) { throw new Error("مرحله بررسی مجوز: "+e.message); }
+    if(permission.display!=="granted") {
+      try { permission=await withTimeout(plugin.requestPermissions(),"دریافت مجوز اعلان"); }
+      catch(e) { throw new Error("مرحله دریافت مجوز: "+e.message); }
+    }
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
     // Do not open Android's "Alarms & reminders" settings screen.
     // Capacitor Local Notifications v7 falls back to an inexact alarm when exact
     // alarm access is unavailable, so the reminder can still be delivered.
-    try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}); } catch(e) { console.warn("Notification channel",e); }
+    try {
+      await withTimeout(plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}),"ساخت کانال اعلان",8000);
+    } catch(e) { console.warn("Notification channel setup failed",e); }
     return plugin;
   }
   async function cancel(note) {
@@ -130,20 +144,24 @@
   }
   async function scheduleAt(note, at, plugin) {
     const id=note.reminderNotificationId || idFor(note.id);
-    const result=await plugin.schedule({notifications:[{
+    let result;
+    try { result=await withTimeout(plugin.schedule({notifications:[{
       id:id,
       title:note.title || "یادآوری دفترچه روزانه",
       body:(note.body || "زمان یادآوری این یادداشت رسیده است").slice(0,180),
       schedule:{at:new Date(at),allowWhileIdle:true},
       channelId:"diary-reminders",
       extra:{noteId:note.id}
-    }]});
+    }]}),"ثبت اعلان در اندروید",15000); }
+    catch(e) { throw new Error("مرحله ثبت اعلان: "+(e.message||"خطای نامشخص")); }
     if(!result || !Array.isArray(result.notifications) || !result.notifications.some(x=>x.id===id))
       throw new Error("گوشی ثبت اعلان را تأیید نکرد");
     if(typeof plugin.getPending==="function") {
-      const pending=await plugin.getPending();
+      let pending;
+      try { pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000); }
+      catch(e) { throw new Error("مرحله بررسی ثبت: "+e.message); }
       if(!pending?.notifications?.some(x=>x.id===id))
-        throw new Error("اعلان در فهرست یادآوری‌های ثبت‌شدهٔ اندروید پیدا نشد");
+        throw new Error("اندروید پاسخ ثبت داد، اما شناسه اعلان در فهرست معلق‌ها نیست");
     }
     note.reminderAt=at;
     note.reminderText=reminderText(at);
