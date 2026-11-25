@@ -73,6 +73,8 @@ api.setDate({year:1405,month:10,day:1});
   assert.equal(savedBeforeScheduling.reminderEnabled,true);
   assert.ok(savedBeforeScheduling.reminderAt>Date.now());
   window.LocalNotifications.schedule=originalSchedule;
+  // The real Capacitor plugin has no custom exact-alarm query method.
+  delete window.LocalNotifications.checkExactNotificationSetting;
   const note=await api.apply(prepared,null,defaultCapture);
   assert.ok(note.reminderAt>Date.now());
   assert.equal(scheduled.id,note.reminderNotificationId);
