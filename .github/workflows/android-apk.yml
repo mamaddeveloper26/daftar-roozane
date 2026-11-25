@@ -44,6 +44,19 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Configure Android reminder permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          source = path.read_text(encoding="utf-8")
+          for permission in ["android.permission.POST_NOTIFICATIONS", "android.permission.SCHEDULE_EXACT_ALARM", "android.permission.RECEIVE_BOOT_COMPLETED"]:
+              marker = f'<uses-permission android:name="{permission}"'
+              if marker not in source:
+                  source = source.replace("<application", f'<uses-permission android:name="{permission}" />\\n    <application', 1)
+          path.write_text(source, encoding="utf-8")
+          PY
+
       - name: Sync web assets
         run: npx cap sync android
 
