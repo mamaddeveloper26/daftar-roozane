@@ -96,6 +96,36 @@
     if(note && note.reminderNotificationId && window.LocalNotifications)
       await window.LocalNotifications.cancel({notifications:[{id:note.reminderNotificationId}]});
   }
+  function reminderText(at) {
+    const date = new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at));
+    const time = new Intl.DateTimeFormat("fa-IR",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(at));
+    return date + " · " + time;
+  }
+  function prepare(note, old, config) {
+    const reminder = config || capture();
+    if (!reminder.enabled) {
+      delete note.reminderEnabled;delete note.reminderAt;delete note.reminderText;
+      delete note.reminderNotificationId;delete note.reminderStatus;delete note.reminderError;
+      return note;
+    }
+    note.reminderEnabled = true;
+    if (reminder.at && reminder.at > Date.now()) {
+      note.reminderAt = reminder.at;
+      note.reminderText = reminderText(reminder.at);
+      note.reminderNotificationId = old?.reminderNotificationId || note.reminderNotificationId || idFor(note.id);
+      note.reminderStatus = "pending";
+      delete note.reminderError;
+    } else {
+      note.reminderStatus = "error";
+      note.reminderError = reminder.error || "زمان یادآوری باید در آینده باشد";
+      if (old?.reminderAt) {
+        note.reminderAt = old.reminderAt;
+        note.reminderText = old.reminderText || reminderText(old.reminderAt);
+        note.reminderNotificationId = old.reminderNotificationId || idFor(note.id);
+      }
+    }
+    return note;
+  }
   async function scheduleAt(note, at, plugin) {
     const id=note.reminderNotificationId || idFor(note.id);
     const result=await plugin.schedule({notifications:[{
@@ -109,19 +139,29 @@
     if(!result || !Array.isArray(result.notifications) || !result.notifications.some(x=>x.id===id))
       throw new Error("گوشی ثبت اعلان را تأیید نکرد");
     note.reminderAt=at;
-    note.reminderText=new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at)) + " · " + new Intl.DateTimeFormat("fa-IR",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(at));
+    note.reminderText=reminderText(at);
     note.reminderNotificationId=id;
+    note.reminderEnabled=true;
+    note.reminderStatus="scheduled";
+    delete note.reminderError;
     return note;
   }
   async function reschedule(note) {
     if(!note || !note.reminderAt || note.reminderAt<=Date.now() || !window.LocalNotifications) return note;
     const plugin=window.LocalNotifications;
     const permission=await plugin.checkPermissions();
-    if(permission.display!=="granted") return note;
-    // Recreate reminders even without exact-alarm access; Android will use an inexact alarm.
+    if(permission.display!=="granted") {
+      note.reminderEnabled=true;note.reminderStatus="permission_required";
+      note.reminderError="اجازه نمایش اعلان در تنظیمات گوشی فعال نیست";
+      return note;
+    }
+    // Exact-alarm access is optional in plugin v7; Android can still schedule an inexact alarm.
     const id=note.reminderNotificationId || idFor(note.id);
     const pending=await plugin.getPending();
-    if(pending.notifications.some(item=>item.id===id)) return note;
+    if(pending.notifications.some(item=>item.id===id)) {
+      note.reminderEnabled=true;note.reminderStatus="scheduled";delete note.reminderError;
+      return note;
+    }
     try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5}); } catch(e) {}
     note.reminderNotificationId=id;
     return scheduleAt(note,note.reminderAt,plugin);
@@ -140,14 +180,13 @@
     const reminder=config||capture();
     if(!reminder.enabled){
       if(old && old.reminderNotificationId) await cancel(old);
-      delete note.reminderAt;delete note.reminderText;delete note.reminderNotificationId;
-      return note;
+      return prepare(note,old,reminder);
     }
-    if(reminder.error) throw new Error("تاریخ یا ساعت یادآوری معتبر نیست: "+reminder.error);
-    const at=reminder.at;
-    if(!at || at<=Date.now()) throw new Error("زمان یادآوری باید در آینده باشد");
+    prepare(note,old,reminder);
+    if(reminder.error || !reminder.at || reminder.at<=Date.now())
+      throw new Error(reminder.error || "زمان یادآوری باید در آینده باشد");
     const plugin=await pluginWithPermissions();
-    return scheduleAt(note,at,plugin);
+    return scheduleAt(note,reminder.at,plugin);
   }
   function reset() {
     selected=null;enabled.checked=false;fields.hidden=true;
@@ -160,14 +199,21 @@
   }
   function load(note) {
     reset();
-    if(!note || !note.reminderAt) return;
-    const date=new Date(note.reminderAt);
-    setDate(parts(date));hour.value=String(date.getHours()).padStart(2,"0");minute.value=String(date.getMinutes()).padStart(2,"0");
-    enabled.checked=true;fields.hidden=false;updateSummary();
+    if(!note || (!note.reminderEnabled && !note.reminderAt)) return;
+    enabled.checked=true;fields.hidden=false;
+    if(note.reminderAt) {
+      const date=new Date(note.reminderAt);
+      const timeParts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(date);
+      const get=type=>timeParts.find(x=>x.type===type)?.value||"00";
+      setDate(parts(date));hour.value=get("hour");minute.value=get("minute");
+    }
+    updateSummary();
   }
   function render(note) {
-    if(!note || !note.reminderAt) return "";
-    return '<div class="entry-reminder">🔔 یادآوری: ' + String(note.reminderText || "").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])) + '</div>';
+    if(!note || (!note.reminderEnabled && !note.reminderAt)) return "";
+    const text=String(note.reminderText || (note.reminderError || "یادآوری فعال است")).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const state=note.reminderStatus==="scheduled"?"":" · "+(note.reminderStatus==="permission_required"?"نیاز به اجازه اعلان":note.reminderStatus==="error"?"نیازمند اصلاح":"در انتظار ثبت");
+    return '<div class="entry-reminder">🔔 یادآوری: ' + text + state + '</div>';
   }
   function init() {
     for(let n=0;n<24;n++) hour.add(new Option(digits(String(n).padStart(2,"0")),String(n).padStart(2,"0")));
@@ -193,6 +239,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,capture,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
+  window.DiaryReminder={init,reset,load,capture,prepare,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
   init();
 })();
