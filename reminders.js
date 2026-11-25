@@ -89,16 +89,8 @@
     if(note && note.reminderNotificationId && window.LocalNotifications)
       await window.LocalNotifications.cancel({notifications:[{id:note.reminderNotificationId}]});
   }
-  async function apply(note, old) {
-    if(!enabled.checked){
-      if(old && old.reminderNotificationId) await cancel(old);
-      delete note.reminderAt;delete note.reminderText;delete note.reminderNotificationId;
-      return note;
-    }
-    const at=timestamp();
-    if(!at || at<=Date.now()) throw new Error("زمان یادآوری باید در آینده باشد");
-    const plugin=await pluginWithPermissions();
-    const id=idFor(note.id);
+  async function scheduleAt(note, at, plugin) {
+    const id=note.reminderNotificationId || idFor(note.id);
     const result=await plugin.schedule({notifications:[{
       id:id,
       title:note.title || "یادآوری دفترچه روزانه",
@@ -113,6 +105,33 @@
     note.reminderText=new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at)) + " · " + new Intl.DateTimeFormat("fa-IR",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(at));
     note.reminderNotificationId=id;
     return note;
+  }
+  async function reschedule(note) {
+    if(!note || !note.reminderAt || note.reminderAt<=Date.now() || !window.LocalNotifications) return note;
+    const plugin=window.LocalNotifications;
+    const permission=await plugin.checkPermissions();
+    if(permission.display!=="granted") return note;
+    if(plugin.checkExactNotificationSetting){
+      const exact=await plugin.checkExactNotificationSetting();
+      if(exact.exactAlarm!=="granted") return note;
+    }
+    const id=note.reminderNotificationId || idFor(note.id);
+    const pending=await plugin.getPending();
+    if(pending.notifications.some(item=>item.id===id)) return note;
+    try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5}); } catch(e) {}
+    note.reminderNotificationId=id;
+    return scheduleAt(note,note.reminderAt,plugin);
+  }
+  async function apply(note, old) {
+    if(!enabled.checked){
+      if(old && old.reminderNotificationId) await cancel(old);
+      delete note.reminderAt;delete note.reminderText;delete note.reminderNotificationId;
+      return note;
+    }
+    const at=timestamp();
+    if(!at || at<=Date.now()) throw new Error("زمان یادآوری باید در آینده باشد");
+    const plugin=await pluginWithPermissions();
+    return scheduleAt(note,at,plugin);
   }
   function reset() {
     selected=null;enabled.checked=false;fields.hidden=true;
@@ -147,6 +166,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,apply,cancel,render};
+  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule};
   init();
 })();
