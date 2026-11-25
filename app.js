@@ -230,9 +230,22 @@
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
       let note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
-      note=await window.DiaryReminder.apply(note,old);
+      // The diary entry must save even if Android notification scheduling fails.
+      let reminderWarning="";
+      try{
+        note=await window.DiaryReminder.apply(note,old);
+      }catch(reminderError){
+        console.error("Reminder scheduling failed; continue saving note",reminderError);
+        if(old&&old.reminderAt){
+          note.reminderAt=old.reminderAt;
+          note.reminderText=old.reminderText;
+          note.reminderNotificationId=old.reminderNotificationId;
+        }
+        reminderWarning="یادداشت ذخیره شد، اما یادآوری ثبت نشد: "+(reminderError.message||"خطای اعلان");
+      }
       await persist(note);
-      navigate("home");showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
+      navigate("home");
+      showToast(reminderWarning|| (old?"یادداشت ویرایش شد":"یادداشت ذخیره شد"));
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
   });
