@@ -23,7 +23,7 @@
     body:$("note-body"), form:$("note-form"), previewDate:$("preview-date"),
     previewTime:$("preview-time"), photoInput:$("photo-input"), photoPreview:$("photo-preview"),
     formCategories:$("form-categories"), formHeading:$("form-heading"),
-    reminderEnabled:$("reminder-enabled"), reminderFields:$("reminder-fields"), reminderDate:$("reminder-date"), reminderTime:$("reminder-time"),
+    reminderEnabled:$("reminder-enabled"), reminderFields:$("reminder-fields"), reminderDate:$("reminder-date"), reminderTime:$("reminder-time"), reminderHour:$("reminder-hour"), reminderMinute:$("reminder-minute"),
     save:$("save-note"), toast:$("toast"), dialog:$("image-dialog"), largeImage:$("large-image")
   };
 
@@ -41,23 +41,37 @@
   }
   function parseJalaliDateTime(value,time){
     const normalized=String(value).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d));
-    const match=normalized.trim().match(/^(\d{4})\\s*[\\/.-]\\s*(\d{1,2})\\s*[\\/.-]\\s*(\d{1,2})$/);
+    const match=normalized.trim().match(/^(\d{4})\s*[\/.-]\s*(\d{1,2})\s*[\/.-]\s*(\d{1,2})$/);
     if(!match)throw new Error("تاریخ را به شکل شمسی سال/ماه/روز وارد کن؛ مثلاً ۱۴۰۵/۰۹/۰۳");
     const jy=Number(match[1]),jm=Number(match[2]),jd=Number(match[3]);
     if(jy<1300||jy>1500||jm<1||jm>12||jd<1||jd>(jm<=6?31:jm<=11?30:30))throw new Error("تاریخ شمسی معتبر نیست");
-    const gy=jy+621,formatter=new Intl.DateTimeFormat("en-US-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"numeric",day:"numeric"});
+    const formatter=new Intl.DateTimeFormat("en-US-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"numeric",day:"numeric"});
     let found=null;
-    for(let offset=0;offset<20;offset++){
-      const candidate=new Date(Date.UTC(gy,2,18+offset,12));
+    for(let offset=0;offset<25;offset++){
+      const candidate=new Date(Date.UTC(jy+621,2,18+offset,12));
       const parts=formatter.formatToParts(candidate);
       const get=type=>Number(parts.find(part=>part.type===type)?.value);
       if(get("year")===jy&&get("month")===jm&&get("day")===jd){found=candidate;break;}
     }
     if(!found)throw new Error("این تاریخ در تقویم شمسی وجود ندارد");
     const [hours,minutes]=time.split(":").map(Number);
+    if(!Number.isInteger(hours)||hours<0||hours>23||!Number.isInteger(minutes)||minutes<0||minutes>59)throw new Error("ساعت یادآوری معتبر نیست");
     return new Date(found.getUTCFullYear(),found.getUTCMonth(),found.getUTCDate(),hours,minutes,0,0).getTime();
   }
   function localTimeValue(date){return String(date.getHours()).padStart(2,"0")+":"+String(date.getMinutes()).padStart(2,"0");}
+  function populateReminderTimeOptions(){
+    el.reminderHour.innerHTML=Array.from({length:24},(_,hour)=>"<option value=\""+String(hour).padStart(2,"0")+"\">"+digits(String(hour).padStart(2,"0"))+"</option>").join("");
+    el.reminderMinute.innerHTML=Array.from({length:60},(_,minute)=>"<option value=\""+String(minute).padStart(2,"0")+"\">"+digits(String(minute).padStart(2,"0"))+"</option>").join("");
+  }
+  function setReminderTime(value){
+    const [hour,minute]=(value||"00:00").split(":");
+    el.reminderHour.value=hour||"00";el.reminderMinute.value=minute||"00";
+    el.reminderTime.value=el.reminderHour.value+":"+el.reminderMinute.value;
+  }
+  function selectedReminderTime(){
+    el.reminderTime.value=el.reminderHour.value+":"+el.reminderMinute.value;
+    return el.reminderTime.value;
+  }
   function notificationPlugin(){return window.LocalNotifications||null;}
   function newNotificationIds(){const ids=[];while(ids.length<3){const value=crypto.getRandomValues(new Uint32Array(1))[0]%2000000000+1;if(!ids.includes(value))ids.push(value);}return ids;}
   async function cancelReminderNotifications(ids){const plugin=notificationPlugin();if(!plugin||!Array.isArray(ids)||!ids.length)return;try{await plugin.cancel({notifications:ids.map(id=>({id}))});}catch(error){console.warn("Could not cancel reminders",error);}}
@@ -188,7 +202,7 @@
 
   function clearForm(){
     el.form.reset();draftPhotos=[];formCategory="شخصی";el.photoPreview.innerHTML="";
-    el.reminderEnabled.checked=false;el.reminderFields.hidden=true;el.reminderDate.value="";el.reminderTime.value="";
+    el.reminderEnabled.checked=false;el.reminderFields.hidden=true;el.reminderDate.value="";setReminderTime("00:00");
     renderFormCategories();const now=tehranNow();el.previewDate.textContent=jalaliDate(now);el.previewTime.textContent=jalaliTime(now);
   }
   function openNew(){
@@ -199,7 +213,7 @@
     editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
     el.title.value=note.title||"";el.body.value=note.body||"";
     el.reminderEnabled.checked=!!note.reminderAt;el.reminderFields.hidden=!note.reminderAt;
-    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=jalaliInputValue(reminderDate);el.reminderTime.value=localTimeValue(reminderDate);}else{el.reminderDate.value="";el.reminderTime.value="";}
+    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=jalaliInputValue(reminderDate);setReminderTime(localTimeValue(reminderDate));}else{el.reminderDate.value="";el.reminderTime.value="";}
     el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
     el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
     el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
@@ -261,7 +275,7 @@
   $("clear-search").addEventListener("click",()=>{el.search.value="";$("clear-search").style.display="none";render();});
   $("sort-button").addEventListener("click",()=>{sortNewest=!sortNewest;$("sort-button").innerHTML=sortNewest?'جدیدترین <span>⌄</span>':'قدیمی‌ترین <span>⌃</span>';render();});
   el.photoInput.addEventListener("change",event=>addPhotos(event.target.files));
-  el.reminderEnabled.addEventListener("change",()=>{el.reminderFields.hidden=!el.reminderEnabled.checked;if(el.reminderEnabled.checked&&(!el.reminderDate.value||!el.reminderTime.value)){const suggested=new Date(Date.now()+60*60*1000);el.reminderDate.value=jalaliInputValue(suggested);el.reminderTime.value=localTimeValue(suggested);}});
+  el.reminderEnabled.addEventListener("change",()=>{el.reminderFields.hidden=!el.reminderEnabled.checked;if(el.reminderEnabled.checked&&(!el.reminderDate.value||!el.reminderTime.value)){const suggested=new Date(Date.now()+60*60*1000);el.reminderDate.value=jalaliInputValue(suggested);setReminderTime(localTimeValue(suggested));}});
   el.photoPreview.addEventListener("click",event=>{const button=event.target.closest("[data-remove-photo]");if(!button)return;draftPhotos.splice(Number(button.dataset.removePhoto),1);renderPhotoPreview();});
   el.form.addEventListener("submit",async event=>{
     event.preventDefault();const title=el.title.value.trim();const body=el.body.value.trim();
@@ -271,7 +285,7 @@
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
       let reminderAt=null;
-      if(el.reminderEnabled.checked){if(!el.reminderDate.value||!el.reminderTime.value)throw new Error("تاریخ و ساعت یادآوری را انتخاب کن");reminderAt=parseJalaliDateTime(el.reminderDate.value,el.reminderTime.value);if(!Number.isFinite(reminderAt)||reminderAt<=Date.now())throw new Error("زمان یادآوری باید در آینده باشد");}
+      if(el.reminderEnabled.checked){const selectedTime=selectedReminderTime();if(!el.reminderDate.value||!selectedTime)throw new Error("تاریخ و ساعت یادآوری را انتخاب کن");reminderAt=parseJalaliDateTime(el.reminderDate.value,selectedTime);if(!Number.isFinite(reminderAt)||reminderAt<=Date.now())throw new Error("زمان یادآوری باید در آینده باشد");}
       const note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos,reminderAt,reminderNotificationIds:[]};
       let newIds=[];
       try{if(reminderAt)newIds=await scheduleReminderNotifications(note);note.reminderNotificationIds=newIds;await persist(note);}
@@ -292,6 +306,7 @@
   $("restore-input").addEventListener("change",event=>{if(event.target.files[0])restoreBackup(event.target.files[0]);});
 
   async function init(){
+    populateReminderTimeOptions();setReminderTime("00:00");
     $("today-label").textContent="امروز · "+todayLabel(new Date());
     try{
       db=await openDb();await migrateOldData();await loadNotes();await reconcileReminders();
