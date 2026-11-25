@@ -37,7 +37,7 @@ api.setDate({year:1405,month:10,day:1});
   window.LocalNotifications={
     checkPermissions:async()=>({display:"granted"}),
     requestPermissions:async()=>({display:"granted"}),
-    checkExactNotificationSetting:async()=>({exactAlarm:"granted"}),
+    checkExactNotificationSetting:async()=>({exact_alarm:"granted"}),
     changeExactNotificationSetting:async()=>({exactAlarm:"granted"}),
     createChannel:async()=>{},
     schedule:async options=>{scheduled=options.notifications[0];return {notifications:[{id:scheduled.id}]}},
@@ -63,6 +63,10 @@ api.setDate({year:1405,month:10,day:1});
   assert.ok(prepared.reminderAt>Date.now());
   // The reminder remains enabled even if the notification plugin rejects scheduling.
   const savedBeforeScheduling={...prepared};
+  const originalExactCheck=window.LocalNotifications.checkExactNotificationSetting;
+  window.LocalNotifications.checkExactNotificationSetting=async()=>({exact_alarm:"denied"});
+  await assert.rejects(()=>api.apply({...prepared},null,defaultCapture),/دسترسی «آلارم دقیق»/);
+  window.LocalNotifications.checkExactNotificationSetting=originalExactCheck;
   const originalSchedule=window.LocalNotifications.schedule;
   window.LocalNotifications.schedule=async()=>{throw new Error("test scheduling failure");};
   await assert.rejects(()=>api.apply(savedBeforeScheduling,null,defaultCapture),/test scheduling failure/);
