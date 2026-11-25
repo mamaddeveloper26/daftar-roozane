@@ -41,14 +41,6 @@
         <label class="field"><span>عنوان یادداشت <small>(اختیاری)</small></span><input id="note-title" maxlength="100" placeholder="مثلاً قرض دادن پول به علی"></label>
         <label class="field"><span>متن یادداشت</span><textarea id="note-body" rows="6" maxlength="6000" placeholder="هر چیزی که می‌خواهی برای آینده به خاطر بسپاری..."></textarea></label>
         <div class="field"><span>دسته‌بندی</span><div class="category-picker" id="form-categories"></div></div>
-        <section class="reminder-panel">
-          <label class="reminder-toggle"><input id="reminder-enabled" type="checkbox"><span class="reminder-checkmark">✓</span><span><strong>یادآوری این یادداشت</strong><small>در زمان مشخص‌شده با اعلان و چند هشدار صوتی خبرم کن</small></span></label>
-          <div id="reminder-fields" class="reminder-fields" hidden>
-            <label class="field"><span>تاریخ یادآوری</span><div class="date-picker-control"><input id="reminder-date" type="date" autocomplete="off" aria-label="تاریخ یادآوری از تقویم گوشی"><button id="open-date-picker" type="button" aria-label="باز کردن تقویم گوشی">📅 انتخاب تاریخ</button></div></label>
-            <div class="field time-picker-field"><span>ساعت یادآوری</span><div class="time-picker"><label><small>ساعت</small><select id="reminder-hour" aria-label="ساعت"></select></label><b>:</b><label><small>دقیقه</small><select id="reminder-minute" aria-label="دقیقه"></select></label></div><input id="reminder-time" type="hidden" value="00:00"></div>
-            <small class="reminder-note">برای این یادداشت سه هشدار پشت‌سرهم با فاصله ۸ ثانیه تنظیم می‌شود.</small>
-          </div>
-        </section>
         <div class="field"><span>عکس‌های یادداشت</span><div class="photo-tools"><label class="photo-add">＋ افزودن عکس<input id="photo-input" type="file" accept="image/*" multiple></label><span class="muted small">عکس‌ها داخل خود برنامه ذخیره می‌شوند</span></div><div id="photo-preview" class="photo-preview"></div></div>
         <div class="timestamp-panel"><div><span>تاریخ ثبت</span><strong id="preview-date">—</strong></div><div><span>ساعت ثبت</span><strong id="preview-time">—</strong></div><small>تاریخ و ساعت به‌صورت خودکار ثبت می‌شوند</small></div>
         <button class="save-button" type="submit" id="save-note">ذخیره یادداشت</button>
@@ -71,7 +63,7 @@
         <h2>دفترچه روزانه</h2><p class="version">نسخه ۱٫۰٫۰</p>
         <div class="about-divider"></div>
         <p class="creator">ساخته شده توسط ممد</p>
-        <p class="about-desc">یک دفترچه ساده و آفلاین برای ثبت و یادآوری اتفاقات مهم زندگی.</p>
+        <p class="about-desc">یک دفترچه ساده و آفلاین برای ثبت اتفاقات و خاطرات روزانه.</p>
       </div>
       <div class="feature-list"><div>✓ <span>ذخیره آفلاین روی گوشی</span></div><div>✓ <span>تاریخ و ساعت شمسی خودکار</span></div><div>✓ <span>پیوست عکس و جستجوی یادداشت‌ها</span></div><div>✓ <span>پشتیبان‌گیری و بازیابی</span></div></div>
     </section>
@@ -86,6 +78,6 @@
   <dialog id="image-dialog"><button id="close-image" type="button" aria-label="بستن">×</button><img id="large-image" alt="تصویر یادداشت"></dialog>
 </div>
 <script src="./notification-bridge.js"></script>
-<script src="./app.js?v=37"></script>
+<script src="./app.js?v=38"></script>
 </body>
 </html>
