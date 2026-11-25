@@ -251,7 +251,7 @@
       db=await openDb();await migrateOldData();await loadNotes();
       if(navigator.storage?.persist){const persisted=await navigator.storage.persist();console.info("Persistent storage:",persisted);}
     }catch(error){console.error(error);showToast("ذخیره‌سازی گوشی در دسترس نیست؛ مرورگر را به‌روز کن");}
-    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=37").catch(error=>console.warn("Offline cache unavailable",error));}
+    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=39").catch(error=>console.warn("Offline cache unavailable",error));}
   }
   init();
 })();
