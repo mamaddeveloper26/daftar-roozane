@@ -88,16 +88,9 @@
     let permission=await plugin.checkPermissions();
     if(permission.display!=="granted") permission=await plugin.requestPermissions();
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Android 12+ has a separate, user-controlled exact-alarm permission.
-    if(typeof plugin.checkExactNotificationSetting==="function") {
-      let exact=await plugin.checkExactNotificationSetting();
-      if(exact?.exactAlarm!=="granted" && typeof plugin.changeExactNotificationSetting==="function") {
-        await plugin.changeExactNotificationSetting();
-        exact=await plugin.checkExactNotificationSetting();
-      }
-      if(exact?.exactAlarm && exact.exactAlarm!=="granted")
-        throw new Error("مجوز «هشدارها و یادآورها» برای برنامه فعال نیست؛ از تنظیمات گوشی آن را فعال کن");
-    }
+    // Do not open Android's "Alarms & reminders" settings screen.
+    // Capacitor Local Notifications v7 falls back to an inexact alarm when exact
+    // alarm access is unavailable, so the reminder can still be delivered.
     try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true}); } catch(e) { console.warn("Notification channel",e); }
     return plugin;
   }
