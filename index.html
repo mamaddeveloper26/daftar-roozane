@@ -8,7 +8,7 @@
   <title>دفترچه روزانه</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=41">
+  <link rel="stylesheet" href="./styles.css?v=42">
 </head>
 <body>
 <div id="app">
@@ -42,6 +42,7 @@
         <label class="field"><span>متن یادداشت</span><textarea id="note-body" rows="6" maxlength="6000" placeholder="هر چیزی که می‌خواهی برای آینده به خاطر بسپاری..."></textarea></label>
         <div class="field"><span>دسته‌بندی</span><div class="category-picker" id="form-categories"></div></div>
         <div class="field"><span>عکس‌های یادداشت</span><div class="photo-tools"><label class="photo-add">＋ افزودن عکس<input id="photo-input" type="file" accept="image/*" multiple></label><span class="muted small">عکس‌ها داخل خود برنامه ذخیره می‌شوند</span></div><div id="photo-preview" class="photo-preview"></div></div>
+        <section class="reminder-panel"><label class="reminder-toggle"><input id="reminder-enabled" type="checkbox"><span class="toggle-ui"></span><span><b>یادآوری این یادداشت</b><small>در تاریخ و ساعت انتخابی اعلان دریافت کن</small></span></label><div id="reminder-fields" class="reminder-fields" hidden><div class="reminder-date-row"><span>تاریخ یادآوری (شمسی)</span><button id="reminder-date-button" class="date-select-button" type="button">انتخاب تاریخ</button></div><div class="time-picker"><label><small>ساعت</small><select id="reminder-hour" aria-label="ساعت یادآوری"></select></label><b>:</b><label><small>دقیقه</small><select id="reminder-minute" aria-label="دقیقه یادآوری"></select></label></div><p id="reminder-summary" class="reminder-summary">تاریخ و ساعت یادآوری را انتخاب کن.</p></div></section>
         <div class="timestamp-panel"><div><span>تاریخ ثبت</span><strong id="preview-date">—</strong></div><div><span>ساعت ثبت</span><strong id="preview-time">—</strong></div><small>تاریخ و ساعت به‌صورت خودکار ثبت می‌شوند</small></div>
         <button class="save-button" type="submit" id="save-note">ذخیره یادداشت</button>
       </form>
@@ -75,9 +76,10 @@
     <button class="nav-item" data-page="about" type="button"><span>ⓘ</span>درباره</button>
   </nav>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="jalali-calendar-dialog" class="calendar-dialog"><div class="calendar-head"><button id="calendar-prev" type="button">‹</button><strong id="calendar-title">—</strong><button id="calendar-next" type="button">›</button></div><div class="calendar-weekdays"><span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span></div><div id="calendar-days" class="calendar-days"></div><div class="calendar-actions"><button id="calendar-cancel" type="button">انصراف</button><button id="calendar-confirm" type="button" disabled>تأیید تاریخ</button></div></dialog>
   <dialog id="image-dialog"><button id="close-image" type="button" aria-label="بستن">×</button><img id="large-image" alt="تصویر یادداشت"></dialog>
 </div>
 <script src="./notification-bridge.js"></script>
-<script src="./app.js?v=41"></script>
+<script src="./app.js?v=42"></script>
 </body>
 </html>
