@@ -102,16 +102,18 @@
       catch(e) { throw new Error("مرحله دریافت مجوز: "+e.message); }
     }
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Verify the real Android exact-alarm app-op. A saved pending notification
-    // is not proof that AlarmManager accepted an exact alarm.
-    if(typeof plugin.checkExactNotificationSetting!=="function")
-      throw new Error("افزونه امکان بررسی مجوز آلارم دقیق اندروید را ندارد");
-    let exact;
-    try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
-    catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
-    const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
-    if(exactStatus!=="granted")
-      throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
+    // Capacitor LocalNotifications 7.x does not expose
+    // checkExactNotificationSetting(). Older builds incorrectly required this
+    // non-standard method, so scheduling stopped before reaching Android.
+    // If a future native bridge supplies it, honor an explicit denial.
+    if(typeof plugin.checkExactNotificationSetting==="function") {
+      let exact;
+      try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
+      catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
+      const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
+      if(exactStatus==="denied")
+        throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
+    }
     // Do not silently continue if the channel cannot be created: on Android 8+
     // a notification posted to a missing channel cannot be displayed.
     try {
