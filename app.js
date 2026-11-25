@@ -272,6 +272,9 @@
   $("clear-search").addEventListener("click",()=>{el.search.value="";$("clear-search").style.display="none";render();});
   $("sort-button").addEventListener("click",()=>{sortNewest=!sortNewest;$("sort-button").innerHTML=sortNewest?'جدیدترین <span>⌄</span>':'قدیمی‌ترین <span>⌃</span>';render();});
   el.photoInput.addEventListener("change",event=>addPhotos(event.target.files));
+  el.reminderDate.addEventListener("click",()=>{if(typeof el.reminderDate.showPicker==="function"){try{el.reminderDate.showPicker();}catch(error){el.reminderDate.focus();}}});
+  el.reminderDate.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();if(typeof el.reminderDate.showPicker==="function"){try{el.reminderDate.showPicker();}catch(error){el.reminderDate.click();}}else{el.reminderDate.click();}}});
+  $("open-date-picker").addEventListener("click",()=>{const input=el.reminderDate;if(typeof input.showPicker==="function"){try{input.showPicker();return;}catch(error){}}input.focus();input.click();});
   el.reminderEnabled.addEventListener("change",()=>{el.reminderFields.hidden=!el.reminderEnabled.checked;if(el.reminderEnabled.checked&&(!el.reminderDate.value||!el.reminderTime.value)){const suggested=new Date(Date.now()+60*60*1000);el.reminderDate.value=deviceDateInputValue(suggested);setReminderTime(localTimeValue(suggested));}});
   el.photoPreview.addEventListener("click",event=>{const button=event.target.closest("[data-remove-photo]");if(!button)return;draftPhotos.splice(Number(button.dataset.removePhoto),1);renderPhotoPreview();});
   el.form.addEventListener("submit",async event=>{
@@ -309,7 +312,7 @@
       db=await openDb();await migrateOldData();await loadNotes();await reconcileReminders();
       if(navigator.storage?.persist){const persisted=await navigator.storage.persist();console.info("Persistent storage:",persisted);}
     }catch(error){console.error(error);showToast("ذخیره‌سازی گوشی در دسترس نیست؛ مرورگر را به‌روز کن");}
-    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=36").catch(error=>console.warn("Offline cache unavailable",error));}
+    if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js?v=37").catch(error=>console.warn("Offline cache unavailable",error));}
   }
   init();
 })();
