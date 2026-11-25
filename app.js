@@ -213,7 +213,7 @@
     editingId=id;formCategory=note.category||"شخصی";draftPhotos=(note.photos||[]).map(photo=>({...photo}));
     el.title.value=note.title||"";el.body.value=note.body||"";
     el.reminderEnabled.checked=!!note.reminderAt;el.reminderFields.hidden=!note.reminderAt;
-    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=jalaliInputValue(reminderDate);setReminderTime(localTimeValue(reminderDate));}else{el.reminderDate.value="";el.reminderTime.value="";}
+    if(note.reminderAt){const reminderDate=new Date(note.reminderAt);el.reminderDate.value=jalaliInputValue(reminderDate);setReminderTime(localTimeValue(reminderDate));}else{el.reminderDate.value="";setReminderTime("00:00");}
     el.previewDate.textContent=note.dateText||jalaliDate(new Date(note.createdAt));
     el.previewTime.textContent=note.timeText||jalaliTime(new Date(note.createdAt));
     el.formHeading.textContent="ویرایش یادداشت";el.save.textContent="ذخیره تغییرات";
