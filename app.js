@@ -230,22 +230,24 @@
       const old=editingId?notes.find(note=>note.id===editingId):null;
       const createdAt=old?old.createdAt:Date.now();const created=new Date(createdAt);
       let note={id:old?old.id:crypto.randomUUID(),title,body,category:formCategory,createdAt,dateText:old?old.dateText:jalaliDate(created),timeText:old?old.timeText:jalaliTime(created),updatedAt:Date.now(),photos:draftPhotos};
-      // The diary entry must save even if Android notification scheduling fails.
-      let reminderWarning="";
-      try{
-        note=await window.DiaryReminder.apply(note,old);
-      }catch(reminderError){
-        console.error("Reminder scheduling failed; continue saving note",reminderError);
-        if(old&&old.reminderAt){
-          note.reminderAt=old.reminderAt;
-          note.reminderText=old.reminderText;
-          note.reminderNotificationId=old.reminderNotificationId;
-        }
-        reminderWarning="یادداشت ذخیره شد، اما یادآوری ثبت نشد: "+(reminderError.message||"خطای اعلان");
+      // Capture reminder controls now, but never wait for Android notifications before saving.
+      const reminderConfig=window.DiaryReminder.capture();
+      if(reminderConfig.enabled&&old&&old.reminderAt){
+        note.reminderAt=old.reminderAt;
+        note.reminderText=old.reminderText;
+        note.reminderNotificationId=old.reminderNotificationId;
       }
       await persist(note);
       navigate("home");
-      showToast(reminderWarning|| (old?"یادداشت ویرایش شد":"یادداشت ذخیره شد"));
+      showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
+      // Schedule/cancel notifications only after the diary entry is safely stored.
+      window.DiaryReminder.apply(note,old,reminderConfig).then(async updatedNote=>{
+        await persist(updatedNote);
+        if(reminderConfig.enabled)showToast("یادآوری هم ثبت شد");
+      }).catch(async reminderError=>{
+        console.error("Reminder scheduling failed after note save",reminderError);
+        showToast("یادداشت ذخیره شد؛ یادآوری ثبت نشد: "+(reminderError.message||"خطای اعلان"));
+      });
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
   });

@@ -112,13 +112,18 @@
     note.reminderNotificationId=id;
     return scheduleAt(note,note.reminderAt,plugin);
   }
-  async function apply(note, old) {
-    if(!enabled.checked){
+  function capture() {
+    const isEnabled=enabled.checked;
+    return {enabled:isEnabled,at:isEnabled?timestamp():null};
+  }
+  async function apply(note, old, config) {
+    const reminder=config||capture();
+    if(!reminder.enabled){
       if(old && old.reminderNotificationId) await cancel(old);
       delete note.reminderAt;delete note.reminderText;delete note.reminderNotificationId;
       return note;
     }
-    const at=timestamp();
+    const at=reminder.at;
     if(!at || at<=Date.now()) throw new Error("زمان یادآوری باید در آینده باشد");
     const plugin=await pluginWithPermissions();
     return scheduleAt(note,at,plugin);
@@ -156,6 +161,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
+  window.DiaryReminder={init,reset,load,capture,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
   init();
 })();
