@@ -98,7 +98,7 @@
     const loaded=await storeRequest("readonly","all");
     notes=loaded.map(note=>({...note}));
     notes.sort((a,b)=>b.createdAt-a.createdAt);render();
-    for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.reschedule(note);if(restored)await storeRequest("readwrite","put",restored);}catch(error){console.warn("Pending reminder recovery failed",error);}}}
+    for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.reschedule(note);if(restored)await storeRequest("readwrite","put",restored);}catch(error){note.reminderStatus="error";note.reminderError=error.message||"بازیابی اعلان ناموفق بود";await storeRequest("readwrite","put",note);console.warn("Pending reminder recovery failed",error);}}}
   }
   async function persist(note){await storeRequest("readwrite","put",note);const index=notes.findIndex(n=>n.id===note.id);if(index>=0)notes[index]=note;else notes.push(note);render();}
   async function removeNote(id){const note=notes.find(n=>n.id===id);if(note)await window.DiaryReminder.cancel(note);await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
@@ -239,10 +239,11 @@
         reminderCaptureError=error;
         console.error("Reminder capture failed; saving note without changing reminder",error);
       }
-      if(reminderConfig.enabled&&old&&old.reminderAt){
-        note.reminderAt=old.reminderAt;
-        note.reminderText=old.reminderText;
-        note.reminderNotificationId=old.reminderNotificationId;
+      if(!reminderCaptureError) window.DiaryReminder.prepare(note,old,reminderConfig);
+      else if(old && (old.reminderEnabled || old.reminderAt)) {
+        note.reminderEnabled=true;note.reminderAt=old.reminderAt;note.reminderText=old.reminderText;
+        note.reminderNotificationId=old.reminderNotificationId;note.reminderStatus=old.reminderStatus;
+        note.reminderError=old.reminderError;
       }
       await persist(note);
       navigate("home");
@@ -257,6 +258,11 @@
         if(reminderConfig.enabled)showToast("یادآوری هم ثبت شد");
       }).catch(async reminderError=>{
         console.error("Reminder scheduling failed after note save",reminderError);
+        if(reminderConfig.enabled) {
+          note.reminderEnabled=true;note.reminderStatus="error";
+          note.reminderError=reminderError.message||"خطای ثبت اعلان";
+          try { await persist(note); } catch(saveError) { console.error("Could not save reminder failure state",saveError); }
+        }
         showToast("یادداشت ذخیره شد؛ یادآوری ثبت نشد: "+(reminderError.message||"خطای اعلان"));
       });
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
