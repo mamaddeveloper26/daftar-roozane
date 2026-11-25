@@ -40,21 +40,26 @@
     return get("year")+"/"+get("month")+"/"+get("day");
   }
   function parseJalaliDateTime(value,time){
-    const normalized=String(value).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d));
+    const normalized=Array.from(String(value||"")).map(ch=>{
+      const code=ch.charCodeAt(0);
+      if(code>=0x06F0&&code<=0x06F9)return String(code-0x06F0);
+      if(code>=0x0660&&code<=0x0669)return String(code-0x0660);
+      return ch;
+    }).join("").replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\uFEFF\u00A0]/g,"").replace(/[\u2044\u2215\uFF0F]/g,"/");
     const match=normalized.trim().match(/^(\d{4})\s*[\/.-]\s*(\d{1,2})\s*[\/.-]\s*(\d{1,2})$/);
     if(!match)throw new Error("تاریخ را به شکل شمسی سال/ماه/روز وارد کن؛ مثلاً ۱۴۰۵/۰۹/۰۳");
     const jy=Number(match[1]),jm=Number(match[2]),jd=Number(match[3]);
-    if(jy<1300||jy>1500||jm<1||jm>12||jd<1||jd>(jm<=6?31:jm<=11?30:30))throw new Error("تاریخ شمسی معتبر نیست");
+    if(jy<1300||jy>1500||jm<1||jm>12||jd<1||jd>31)throw new Error("تاریخ شمسی معتبر نیست");
     const formatter=new Intl.DateTimeFormat("en-US-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"numeric",day:"numeric"});
     let found=null;
-    for(let offset=0;offset<25;offset++){
-      const candidate=new Date(Date.UTC(jy+621,2,18+offset,12));
+    for(let offset=0;offset<35;offset++){
+      const candidate=new Date(Date.UTC(jy+621,2,10+offset,12));
       const parts=formatter.formatToParts(candidate);
       const get=type=>Number(parts.find(part=>part.type===type)?.value);
       if(get("year")===jy&&get("month")===jm&&get("day")===jd){found=candidate;break;}
     }
     if(!found)throw new Error("این تاریخ در تقویم شمسی وجود ندارد");
-    const [hours,minutes]=time.split(":").map(Number);
+    const [hours,minutes]=String(time||"").split(":").map(Number);
     if(!Number.isInteger(hours)||hours<0||hours>23||!Number.isInteger(minutes)||minutes<0||minutes>59)throw new Error("ساعت یادآوری معتبر نیست");
     return new Date(found.getUTCFullYear(),found.getUTCMonth(),found.getUTCDate(),hours,minutes,0,0).getTime();
   }
