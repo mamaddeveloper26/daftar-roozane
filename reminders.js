@@ -83,11 +83,13 @@
     return ((hash>>>0)&0x7fffffff)||1;
   }
   function withTimeout(promise, label, ms=12000) {
+    // The lightweight Node test harness has no timer APIs; production Android does.
+    if(typeof setTimeout!=="function") return Promise.resolve(promise);
     let timer;
     return Promise.race([
       Promise.resolve(promise),
       new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" بیش از "+Math.round(ms/1000)+" ثانیه پاسخ نداد")),ms);})
-    ]).finally(()=>clearTimeout(timer));
+    ]).finally(()=>{if(typeof clearTimeout==="function")clearTimeout(timer);});
   }
   async function pluginWithPermissions() {
     const plugin=window.LocalNotifications;
