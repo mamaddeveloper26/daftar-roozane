@@ -24,6 +24,13 @@ assert.equal(iso(1405,7,1),"2026-09-23");
 assert.equal(api.monthLength(1403,12),30);
 assert.equal(api.monthLength(1404,12),29);
 assert.throws(()=>api.toGregorian(1404,12,30),/تاریخ شمسی معتبر نیست/);
+document.getElementById("reminder-enabled").checked=true;
+api.setDate({year:1404,month:12,day:30});
+const invalidCapture=api.capture();
+assert.equal(invalidCapture.enabled,true);
+assert.equal(invalidCapture.at,null);
+assert.match(invalidCapture.error,/تاریخ شمسی معتبر نیست/);
+api.setDate({year:1405,month:10,day:1});
 
 (async()=>{
   let scheduled=null, cancelled=null;
