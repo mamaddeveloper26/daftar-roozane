@@ -47,24 +47,6 @@ jobs:
       - name: Sync web assets
         run: npx cap sync android
 
-      - name: Enable Android notifications and exact alarms
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          source = path.read_text(encoding="utf-8")
-          permissions = [
-              '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
-              '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />',
-          ]
-          for permission in permissions:
-              if permission not in source:
-                  source = source.replace("    <application", permission + "\n    <application", 1)
-          path.write_text(source, encoding="utf-8")
-          PY
-          grep -q 'android.permission.POST_NOTIFICATIONS' android/app/src/main/AndroidManifest.xml
-          grep -q 'android.permission.SCHEDULE_EXACT_ALARM' android/app/src/main/AndroidManifest.xml
-
       - name: Install persistent signing key
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
