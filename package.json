@@ -5,7 +5,7 @@
   "description": "دفترچه روزانه فارسی با پشتیبانی آفلاین",
   "scripts": {
     "prepare:web": "mkdir -p www && cp index.html app.js reminders.js styles.css manifest.json sw.js icon.svg www/ && esbuild notification-bridge.js --bundle --format=iife --outfile=www/notification-bridge.js",
-    "check": "node --check app.js && node --check reminders.js"
+    "check": "node --check app.js && node --check reminders.js && node tests/reminder-date.test.cjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
