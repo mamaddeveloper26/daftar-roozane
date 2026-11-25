@@ -166,6 +166,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule,toGregorian,monthLength};
+  window.DiaryReminder={init,reset,load,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
   init();
 })();
