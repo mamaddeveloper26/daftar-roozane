@@ -38,8 +38,10 @@ api.setDate({year:1405,month:10,day:1});
     checkPermissions:async()=>({display:"granted"}),
     requestPermissions:async()=>({display:"granted"}),
     checkExactNotificationSetting:async()=>({exactAlarm:"granted"}),
+    changeExactNotificationSetting:async()=>({exactAlarm:"granted"}),
     createChannel:async()=>{},
     schedule:async options=>{scheduled=options.notifications[0];return {notifications:[{id:scheduled.id}]}},
+    getPending:async()=>({notifications:scheduled?[{id:scheduled.id}]:[]}),
     cancel:async options=>{cancelled=options.notifications[0].id}
   };
   document.getElementById("reminder-enabled").checked=true;
