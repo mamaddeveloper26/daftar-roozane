@@ -45,6 +45,15 @@ api.setDate({year:1405,month:10,day:1});
   document.getElementById("reminder-enabled").checked=true;
   document.getElementById("reminder-hour").value="23";
   document.getElementById("reminder-minute").value="59";
+  // Enabling reminders with no selected date should choose a future Tehran time.
+  api.reset();
+  const enabledElement=document.getElementById("reminder-enabled");
+  enabledElement.checked=true;
+  const beforeDefault=Date.now();
+  enabledElement.listeners.change();
+  const defaultCapture=api.capture();
+  assert.ok(defaultCapture.at>=beforeDefault+4*60*1000);
+  assert.ok(defaultCapture.at<=beforeDefault+6*60*1000);
   api.setDate({year:1405,month:10,day:1});
   const note=await api.apply({id:"test-note-1",title:"آزمون",body:"اعلان آزمایشی"},null);
   assert.ok(note.reminderAt>Date.now());
