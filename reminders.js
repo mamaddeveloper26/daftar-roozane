@@ -94,25 +94,40 @@
   }
   function compact(value) {
     try {
-      if(value instanceof Error)return {name:value.name,message:value.message};
+      if(value instanceof Error)return {name:value.name,message:value.message,code:value.code||null,stack:value.stack||null};
       const json=JSON.stringify(value);
-      return json && json.length>1800 ? json.slice(0,1800)+"…" : (value??null);
+      return json && json.length>2400 ? json.slice(0,2400)+"…" : (value??null);
     } catch (_) { return String(value); }
   }
-  function diagnosticReport() {
+  async function diagnosticReport() {
     let history=[];
     try { history=JSON.parse(localStorage.getItem(DIAG_KEY)||"[]"); } catch (_) {}
     const plugin=window.LocalNotifications;
     let platform="unknown";
     try { platform=window.Capacitor?.getPlatform?.()||"unknown"; } catch (_) {}
+    const live={};
+    async function probe(name,fn) {
+      if(typeof fn!=="function"){live[name]={available:false};return;}
+      try { live[name]={available:true,result:compact(await withTimeout(fn(),name+" (گزارش فنی)",8000))}; }
+      catch(error) { live[name]={available:true,error:compact(error)}; }
+    }
+    if(plugin) {
+      await probe("notificationPermission",()=>plugin.checkPermissions?.());
+      await probe("exactAlarmPermission",()=>plugin.checkExactNotificationSetting?.());
+      await probe("pendingNotifications",()=>plugin.getPending?.());
+      await probe("notificationChannels",()=>plugin.listChannels?.());
+    }
     return {
       generatedAt:new Date().toISOString(),
+      localTime:new Date().toString(),
+      timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent:navigator.userAgent,
       platform,
+      capacitorAvailable:!!window.Capacitor,
       pluginLoaded:!!plugin,
-      pluginMethods:plugin?Object.keys(plugin).sort():[],
-      exactAlarmCheckAvailable:typeof plugin?.checkExactNotificationSetting==="function",
+      pluginMethods:plugin?["checkPermissions","requestPermissions","checkExactNotificationSetting","schedule","getPending","createChannel","listChannels","cancel","addListener"].filter(name=>typeof plugin[name]==="function"):[],
       appScripts:[...document.scripts].map(s=>s.src).filter(s=>/app\.js|reminders\.js|notification-bridge/.test(s)),
+      live,
       history
     };
   }
