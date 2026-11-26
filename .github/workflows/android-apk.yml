@@ -60,6 +60,26 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Install native Android reminder implementation
+        run: |
+          PACKAGE_DIR="android/app/src/main/java/com/mamaddeveloper26/daftarroozane"
+          mkdir -p "$PACKAGE_DIR"
+          cp native-android/*.java "$PACKAGE_DIR/"
+          cat > "$PACKAGE_DIR/MainActivity.java" <<'JAVA'
+          package com.mamaddeveloper26.daftarroozane;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(NativeReminderPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          JAVA
+
       - name: Configure Android reminder permissions
         run: |
           python3 - <<'PY'
@@ -70,6 +90,19 @@ jobs:
               marker = f'<uses-permission android:name="{permission}"'
               if marker not in source:
                   source = source.replace("<application", f'<uses-permission android:name="{permission}" />' + chr(10) + '    <application', 1)
+          receiver = '''
+              <receiver android:name=".NativeReminderReceiver" android:exported="false" />
+              <receiver android:name=".NativeReminderBootReceiver" android:enabled="true" android:exported="true">
+                  <intent-filter>
+                      <action android:name="android.intent.action.BOOT_COMPLETED" />
+                      <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                      <action android:name="android.intent.action.TIME_SET" />
+                      <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                  </intent-filter>
+              </receiver>
+          '''
+          if '.NativeReminderReceiver' not in source:
+              source = source.replace('</application>', receiver + '\\n</application>', 1)
           path.write_text(source, encoding="utf-8")
           PY
 
