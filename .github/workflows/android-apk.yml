@@ -102,7 +102,7 @@ jobs:
               </receiver>
           '''
           if '.NativeReminderReceiver' not in source:
-              source = source.replace('</application>', receiver + '\\n</application>', 1)
+              source = source.replace('</application>', receiver + chr(10) + '</application>', 1)
           path.write_text(source, encoding="utf-8")
           PY
 
