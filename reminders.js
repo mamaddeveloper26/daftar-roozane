@@ -102,7 +102,7 @@
   async function diagnosticReport() {
     let history=[];
     try { history=JSON.parse(localStorage.getItem(DIAG_KEY)||"[]"); } catch (_) {}
-    const plugin=window.LocalNotifications;
+    const plugin=window.NativeReminder;
     let platform="unknown";
     try { platform=window.Capacitor?.getPlatform?.()||"unknown"; } catch (_) {}
     const live={};
@@ -112,11 +112,8 @@
       catch(error) { live[name]={available:true,error:compact(error)}; }
     }
     if(plugin) {
-      await probe("notificationPermission",()=>plugin.checkPermissions?.());
-      await probe("exactAlarmPermission",()=>plugin.checkExactNotificationSetting?.());
-      await probe("pendingNotifications",()=>plugin.getPending?.());
-      await probe("deliveredNotifications",()=>plugin.getDeliveredNotifications?.());
-      await probe("notificationChannels",()=>plugin.listChannels?.());
+      await probe("nativeScheduleProbe",()=>Promise.resolve({available:typeof plugin.schedule==="function"}));
+      await probe("nativeCancelProbe",()=>Promise.resolve({available:typeof plugin.cancel==="function"}));
     }
     return {
       generatedAt:new Date().toISOString(),
@@ -126,7 +123,7 @@
       platform,
       capacitorAvailable:!!window.Capacitor,
       pluginLoaded:!!plugin,
-      pluginMethods:plugin?["checkPermissions","requestPermissions","checkExactNotificationSetting","schedule","getPending","getDeliveredNotifications","createChannel","listChannels","cancel","addListener"].filter(name=>typeof plugin[name]==="function"):[],
+      pluginMethods:plugin?["schedule","cancel"].filter(name=>typeof plugin[name]==="function"):[],
       appScripts:[...document.scripts].map(s=>s.src).filter(s=>/app\.js|reminders\.js|notification-bridge/.test(s)),
       live,
       history
