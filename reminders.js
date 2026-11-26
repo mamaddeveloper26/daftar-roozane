@@ -102,18 +102,17 @@
       catch(e) { throw new Error("مرحله دریافت مجوز: "+e.message); }
     }
     if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Capacitor LocalNotifications 7.x does not expose
-    // checkExactNotificationSetting(). Older builds incorrectly required this
-    // non-standard method, so scheduling stopped before reaching Android.
-    // If a future native bridge supplies it, honor an explicit denial.
-    if(typeof plugin.checkExactNotificationSetting==="function") {
-      let exact;
-      try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
-      catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
-      const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
-      if(exactStatus==="denied")
-        throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
-    }
+    // Capacitor Local Notifications exposes this API from v6 onward.
+    // On Android it is mandatory: do not silently claim a reminder was scheduled
+    // when the exact-alarm state cannot be checked.
+    if(typeof plugin.checkExactNotificationSetting!=="function")
+      throw new Error("افزونه اعلان این نسخه امکان بررسی مجوز آلارم دقیق را ندارد");
+    let exact;
+    try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
+    catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
+    const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
+    if(exactStatus!=="granted")
+      throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
     // Do not silently continue if the channel cannot be created: on Android 8+
     // a notification posted to a missing channel cannot be displayed.
     try {
@@ -187,22 +186,25 @@
   async function reschedule(note) {
     if(!note || !note.reminderAt || note.reminderAt<=Date.now() || !window.LocalNotifications) return note;
     const plugin=window.LocalNotifications;
-    const permission=await plugin.checkPermissions();
+    const permission=await withTimeout(plugin.checkPermissions(),"بررسی مجوز اعلان");
     if(permission.display!=="granted") {
       note.reminderEnabled=true;note.reminderStatus="permission_required";
       note.reminderError="اجازه نمایش اعلان در تنظیمات گوشی فعال نیست";
       return note;
     }
-    if(typeof plugin.checkExactNotificationSetting==="function") {
-      const exact=await plugin.checkExactNotificationSetting();
-      if((exact?.exact_alarm ?? exact?.exactAlarm)!=="granted") {
-        note.reminderEnabled=true;note.reminderStatus="permission_required";
-        note.reminderError="دسترسی آلارم دقیق اندروید فعال نیست";
-        return note;
-      }
+    if(typeof plugin.checkExactNotificationSetting!=="function") {
+      note.reminderEnabled=true;note.reminderStatus="error";
+      note.reminderError="افزونه اعلان امکان بررسی مجوز آلارم دقیق را ندارد";
+      return note;
+    }
+    const exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000);
+    if((exact?.exact_alarm ?? exact?.exactAlarm)!=="granted") {
+      note.reminderEnabled=true;note.reminderStatus="permission_required";
+      note.reminderError="دسترسی آلارم دقیق اندروید فعال نیست";
+      return note;
     }
     const id=note.reminderNotificationId || idFor(note.id);
-    const pending=await plugin.getPending();
+    const pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000);
     if(pending.notifications.some(item=>item.id===id)) {
       note.reminderEnabled=true;note.reminderStatus="scheduled";delete note.reminderError;
       return note;
