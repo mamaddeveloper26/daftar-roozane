@@ -144,37 +144,17 @@
     return raced.then(value=>{recordDiagnostic(label,"success",compact(value));return value;},error=>{recordDiagnostic(label,"error",compact(error));throw error;}).finally(()=>{if(typeof clearTimeout==="function")clearTimeout(timer);});
   }
   async function pluginWithPermissions() {
-    const plugin=window.LocalNotifications;
-    if(!plugin) throw new Error("یادآوری فقط در نسخه نصب‌شده اندروید فعال است");
-    let permission;
-    try { permission=await withTimeout(plugin.checkPermissions(),"بررسی مجوز اعلان"); }
-    catch(e) { throw new Error("مرحله بررسی مجوز: "+e.message); }
-    if(permission.display!=="granted") {
-      try { permission=await withTimeout(plugin.requestPermissions(),"دریافت مجوز اعلان"); }
-      catch(e) { throw new Error("مرحله دریافت مجوز: "+e.message); }
-    }
-    if(permission.display!=="granted") throw new Error("اجازه نمایش اعلان داده نشد؛ از تنظیمات گوشی فعالش کن");
-    // Capacitor Local Notifications exposes this API from v6 onward.
-    // On Android it is mandatory: do not silently claim a reminder was scheduled
-    // when the exact-alarm state cannot be checked.
-    if(typeof plugin.checkExactNotificationSetting!=="function")
-      throw new Error("افزونه اعلان این نسخه امکان بررسی مجوز آلارم دقیق را ندارد");
-    let exact;
-    try { exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000); }
-    catch(e) { throw new Error("مرحله بررسی آلارم دقیق: "+(e.message||"خطای نامشخص")); }
-    const exactStatus=exact?.exact_alarm ?? exact?.exactAlarm;
-    if(exactStatus!=="granted")
-      throw new Error("دسترسی «آلارم دقیق» اندروید برای دفترچه روزانه فعال نیست؛ از تنظیمات برنامه، بخش Alarms & reminders آن را روشن کن");
-    // Do not silently continue if the channel cannot be created: on Android 8+
-    // a notification posted to a missing channel cannot be displayed.
-    try {
-      await withTimeout(plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:4,vibration:true}),"ساخت کانال اعلان",8000);
-    } catch(e) { throw new Error("مرحله ساخت کانال اعلان: "+(e.message||"خطای نامشخص")); }
+    const plugin=window.NativeReminder;
+    if(!plugin || typeof plugin.schedule!=="function" || typeof plugin.cancel!=="function")
+      throw new Error("ماژول بومی یادآوری اندروید بارگذاری نشده است");
     return plugin;
   }
   async function cancel(note) {
-    if(note && note.reminderNotificationId && window.LocalNotifications)
-      await window.LocalNotifications.cancel({notifications:[{id:note.reminderNotificationId}]});
+    if(!note || !note.reminderNotificationId) return;
+    const plugin=window.NativeReminder;
+    if(!plugin || typeof plugin.cancel!=="function")
+      throw new Error("ماژول بومی لغو یادآوری در دسترس نیست");
+    await withTimeout(plugin.cancel({id:note.reminderNotificationId}),"لغو یادآوری اندروید",8000);
   }
   function reminderText(at) {
     const date = new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at));
@@ -208,32 +188,29 @@
   }
   async function scheduleAt(note, at, plugin) {
     const id=note.reminderNotificationId || idFor(note.id);
+    recordDiagnostic("native-schedule-input","started",{id,at:new Date(at).toISOString(),now:new Date().toISOString()});
     let result;
-    recordDiagnostic("schedule-input","started",{id,at:new Date(at).toISOString(),now:new Date().toISOString(),platform:window.Capacitor?.getPlatform?.()||"unknown"});
-    try { result=await withTimeout(plugin.schedule({notifications:[{
-      id:id,
-      title:note.title || "یادآوری دفترچه روزانه",
-      body:(note.body || "زمان یادآوری این یادداشت رسیده است").slice(0,180),
-      schedule:{at:new Date(at),allowWhileIdle:true},
-      channelId:"diary-reminders",
-      extra:{noteId:note.id}
-    }]}),"ثبت اعلان در اندروید",15000); }
-    catch(e) { throw new Error("مرحله ثبت اعلان: "+(e.message||"خطای نامشخص")); }
-    if(!result || !Array.isArray(result.notifications) || !result.notifications.some(x=>x.id===id))
-      throw new Error("گوشی ثبت اعلان را تأیید نکرد");
-    if(typeof plugin.getPending==="function") {
-      let pending;
-      try { pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000); }
-      catch(e) { throw new Error("مرحله بررسی ثبت: "+e.message); }
-      if(!pending?.notifications?.some(x=>x.id===id))
-        throw new Error("اندروید پاسخ ثبت داد، اما شناسه اعلان در فهرست معلق‌ها نیست");
+    try {
+      result=await withTimeout(plugin.schedule({
+        id,
+        at:Number(at),
+        title:note.title || "یادآوری دفترچه روزانه",
+        body:(note.body || "زمان یادآوری این یادداشت رسیده است").slice(0,180),
+        noteId:String(note.id)
+      }),"ثبت مستقیم یادآوری در اندروید",12000);
+    } catch(error) {
+      recordDiagnostic("native-schedule","error",compact(error));
+      throw new Error("ثبت مستقیم یادآوری در اندروید ناموفق بود: "+(error.message||"خطای نامشخص"));
     }
+    if(!result || result.scheduled!==true || Number(result.id)!==id)
+      throw new Error("اندروید ثبت یادآوری را تأیید نکرد");
     note.reminderAt=at;
     note.reminderText=reminderText(at);
     note.reminderNotificationId=id;
     note.reminderEnabled=true;
     note.reminderStatus="scheduled";
     delete note.reminderError;
+    recordDiagnostic("native-schedule","success",{id,scheduledAt:result.scheduledAt});
     return note;
   }
   async function reschedule(note) {
@@ -244,59 +221,15 @@
         note.reminderStatus="expired";
         note.reminderError="زمان انتخاب‌شده برای یادآوری گذشته است";
       }
-      recordDiagnostic("recovery-skipped","expired",{noteId:note.id,reminderAt:note.reminderAt,now:Date.now()});
+      recordDiagnostic("native-recovery-skipped","expired",{noteId:note.id,reminderAt:note.reminderAt,now:Date.now()});
       return note;
     }
-    recordDiagnostic("recovery-started","started",{noteId:note.id,reminderAt:note.reminderAt,now:Date.now()});
-    if(!window.LocalNotifications) {
-      note.reminderEnabled=true;
-      note.reminderStatus="error";
-      note.reminderError="افزونه اعلان در برنامه بارگذاری نشده است؛ فایل notification-bridge.js در دسترس نیست";
-      return note;
-    }
-    const plugin=window.LocalNotifications;
-    const permission=await withTimeout(plugin.checkPermissions(),"بررسی مجوز اعلان");
-    if(permission.display!=="granted") {
-      note.reminderEnabled=true;note.reminderStatus="permission_required";
-      note.reminderError="اجازه نمایش اعلان در تنظیمات گوشی فعال نیست";
-      return note;
-    }
-    if(typeof plugin.checkExactNotificationSetting!=="function") {
-      note.reminderEnabled=true;note.reminderStatus="error";
-      note.reminderError="افزونه اعلان امکان بررسی مجوز آلارم دقیق را ندارد";
-      return note;
-    }
-    const exact=await withTimeout(plugin.checkExactNotificationSetting(),"بررسی مجوز آلارم دقیق",8000);
-    if((exact?.exact_alarm ?? exact?.exactAlarm)!=="granted") {
-      note.reminderEnabled=true;note.reminderStatus="permission_required";
-      note.reminderError="دسترسی آلارم دقیق اندروید فعال نیست";
-      return note;
-    }
+    const plugin=await pluginWithPermissions();
     const id=note.reminderNotificationId || idFor(note.id);
-    // getPending() reads the plugin's persisted JSON store; it does not prove
-    // that Android AlarmManager still owns a live alarm for this notification.
-    // Always schedule again during recovery. The native plugin replaces any
-    // existing PendingIntent with the same notification ID before arming it.
-    let wasListed=null;
-    try {
-      const pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000);
-      wasListed=!!pending?.notifications?.some(item=>item.id===id);
-    } catch(error) {
-      recordDiagnostic("recovery-pending-check","error",compact(error));
-    }
-    recordDiagnostic("recovery-rearm","started",{id,wasListed,at:new Date(note.reminderAt).toISOString()});
-    try {
-      await withTimeout(plugin.createChannel({
-        id:"diary-reminders",name:"یادآوری‌های دفترچه",
-        description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true
-      }),"بازبینی کانال اعلان",8000);
-    } catch(error) {
-      recordDiagnostic("recovery-channel","error",compact(error));
-      throw new Error("مرحله بازبینی کانال اعلان: "+(error.message||"خطای نامشخص"));
-    }
     note.reminderNotificationId=id;
+    recordDiagnostic("native-recovery-started","started",{id,at:note.reminderAt});
     const restored=await scheduleAt(note,note.reminderAt,plugin);
-    recordDiagnostic("recovery-rearm","success",{id,wasListed});
+    recordDiagnostic("native-recovery","success",{id});
     return restored;
   }
   function capture() {
