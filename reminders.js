@@ -115,6 +115,7 @@
       await probe("notificationPermission",()=>plugin.checkPermissions?.());
       await probe("exactAlarmPermission",()=>plugin.checkExactNotificationSetting?.());
       await probe("pendingNotifications",()=>plugin.getPending?.());
+      await probe("deliveredNotifications",()=>plugin.getDeliveredNotifications?.());
       await probe("notificationChannels",()=>plugin.listChannels?.());
     }
     return {
@@ -125,7 +126,7 @@
       platform,
       capacitorAvailable:!!window.Capacitor,
       pluginLoaded:!!plugin,
-      pluginMethods:plugin?["checkPermissions","requestPermissions","checkExactNotificationSetting","schedule","getPending","createChannel","listChannels","cancel","addListener"].filter(name=>typeof plugin[name]==="function"):[],
+      pluginMethods:plugin?["checkPermissions","requestPermissions","checkExactNotificationSetting","schedule","getPending","getDeliveredNotifications","createChannel","listChannels","cancel","addListener"].filter(name=>typeof plugin[name]==="function"):[],
       appScripts:[...document.scripts].map(s=>s.src).filter(s=>/app\.js|reminders\.js|notification-bridge/.test(s)),
       live,
       history
@@ -272,14 +273,31 @@
       return note;
     }
     const id=note.reminderNotificationId || idFor(note.id);
-    const pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000);
-    if(pending.notifications.some(item=>item.id===id)) {
-      note.reminderEnabled=true;note.reminderStatus="scheduled";delete note.reminderError;
-      return note;
+    // getPending() reads the plugin's persisted JSON store; it does not prove
+    // that Android AlarmManager still owns a live alarm for this notification.
+    // Always schedule again during recovery. The native plugin replaces any
+    // existing PendingIntent with the same notification ID before arming it.
+    let wasListed=null;
+    try {
+      const pending=await withTimeout(plugin.getPending(),"بررسی فهرست اعلان‌ها",8000);
+      wasListed=!!pending?.notifications?.some(item=>item.id===id);
+    } catch(error) {
+      recordDiagnostic("recovery-pending-check","error",compact(error));
     }
-    try { await plugin.createChannel({id:"diary-reminders",name:"یادآوری‌های دفترچه",description:"یادآوری یادداشت‌های شخصی",importance:5}); } catch(e) {}
+    recordDiagnostic("recovery-rearm","started",{id,wasListed,at:new Date(note.reminderAt).toISOString()});
+    try {
+      await withTimeout(plugin.createChannel({
+        id:"diary-reminders",name:"یادآوری‌های دفترچه",
+        description:"یادآوری یادداشت‌های شخصی",importance:5,vibration:true
+      }),"بازبینی کانال اعلان",8000);
+    } catch(error) {
+      recordDiagnostic("recovery-channel","error",compact(error));
+      throw new Error("مرحله بازبینی کانال اعلان: "+(error.message||"خطای نامشخص"));
+    }
     note.reminderNotificationId=id;
-    return scheduleAt(note,note.reminderAt,plugin);
+    const restored=await scheduleAt(note,note.reminderAt,plugin);
+    recordDiagnostic("recovery-rearm","success",{id,wasListed});
+    return restored;
   }
   function capture() {
     const isEnabled=enabled.checked;
