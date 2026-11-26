@@ -253,19 +253,23 @@
         showToast("یادداشت ذخیره شد؛ خواندن تنظیم یادآوری ناموفق بود");
         return;
       }
-      // Schedule/cancel notifications only after the diary entry is safely stored.
-      window.DiaryReminder.apply(note,old,reminderConfig).then(async updatedNote=>{
+      // Finish notification scheduling before leaving this save operation.
+      // The note is already safely stored above, so reminder failure never loses it.
+      try {
+        const updatedNote=await window.DiaryReminder.apply(note,old,reminderConfig);
         await persist(updatedNote);
-        if(reminderConfig.enabled)showToast("یادآوری هم ثبت شد");
-      }).catch(async reminderError=>{
+        if(reminderConfig.enabled)showToast("یادآوری ثبت شد");
+      } catch(reminderError) {
         console.error("Reminder scheduling failed after note save",reminderError);
         if(reminderConfig.enabled) {
-          note.reminderEnabled=true;note.reminderStatus="error";
-          note.reminderError=reminderError.message||"خطای ثبت اعلان";
-          try { await persist(note); } catch(saveError) { console.error("Could not save reminder failure state",saveError); }
+          note.reminderEnabled=true;
+          note.reminderStatus="error";
+          note.reminderError=reminderError?.message||"خطای ثبت اعلان";
+          try { await persist(note); }
+          catch(saveError) { console.error("Could not save reminder failure state",saveError); }
         }
-        showToast("یادداشت ذخیره شد؛ یادآوری ثبت نشد: "+(reminderError.message||"خطای اعلان"));
-      });
+        showToast("یادداشت ذخیره شد؛ ثبت یادآوری ناموفق بود");
+      }
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
   });
