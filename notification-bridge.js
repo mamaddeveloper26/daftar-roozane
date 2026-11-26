@@ -1,4 +1,6 @@
-import { LocalNotifications } from "@capacitor/local-notifications";
+import { registerPlugin } from "@capacitor/core";
 
-// Expose the Capacitor plugin to the app’s framework-free JavaScript.
-window.LocalNotifications = LocalNotifications;
+// Native Android AlarmManager bridge. Scheduling and cancellation complete
+// inside the Android process; no LocalNotifications JS promise chain is used.
+const NativeReminder = registerPlugin("NativeReminder");
+window.NativeReminder = NativeReminder;
