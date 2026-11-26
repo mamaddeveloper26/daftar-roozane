@@ -38,6 +38,22 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
+      - name: Stamp build-specific web asset version
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          version = os.environ["BUILD_NUMBER"]
+          for name in ["index.html", "app.js", "sw.js"]:
+              path = Path(name)
+              source = path.read_text(encoding="utf-8")
+              if "__BUILD_VERSION__" not in source:
+                  raise SystemExit(f"Build version placeholder missing from {name}")
+              path.write_text(source.replace("__BUILD_VERSION__", version), encoding="utf-8")
+          PY
+
       - name: Prepare offline web assets
         run: npm run prepare:web
 
