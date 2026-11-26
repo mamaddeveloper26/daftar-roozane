@@ -184,7 +184,13 @@
     return note;
   }
   async function reschedule(note) {
-    if(!note || !note.reminderAt || note.reminderAt<=Date.now() || !window.LocalNotifications) return note;
+    if(!note || !note.reminderAt || note.reminderAt<=Date.now()) return note;
+    if(!window.LocalNotifications) {
+      note.reminderEnabled=true;
+      note.reminderStatus="error";
+      note.reminderError="افزونه اعلان در برنامه بارگذاری نشده است؛ فایل notification-bridge.js در دسترس نیست";
+      return note;
+    }
     const plugin=window.LocalNotifications;
     const permission=await withTimeout(plugin.checkPermissions(),"بررسی مجوز اعلان");
     if(permission.display!=="granted") {
