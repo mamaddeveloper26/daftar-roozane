@@ -34,58 +34,37 @@ api.setDate({year:1405,month:10,day:1});
 
 (async()=>{
   let scheduled=null, cancelled=null;
-  window.LocalNotifications={
-    checkPermissions:async()=>({display:"granted"}),
-    requestPermissions:async()=>({display:"granted"}),
-    checkExactNotificationSetting:async()=>({exact_alarm:"granted"}),
-    changeExactNotificationSetting:async()=>({exactAlarm:"granted"}),
-    createChannel:async()=>{},
-    schedule:async options=>{scheduled=options.notifications[0];return {notifications:[{id:scheduled.id}]}},
-    getPending:async()=>({notifications:scheduled?[{id:scheduled.id}]:[]}),
-    cancel:async options=>{cancelled=options.notifications[0].id}
+  window.NativeReminder={
+    schedule:async options=>{scheduled=options;return {id:options.id,scheduledAt:options.at,scheduled:true}},
+    cancel:async options=>{cancelled=options.id;return {id:options.id,cancelled:true}}
   };
   document.getElementById("reminder-enabled").checked=true;
-  document.getElementById("reminder-hour").value="23";
-  document.getElementById("reminder-minute").value="59";
-  // Enabling reminders with no selected date should choose a future Tehran time.
   api.reset();
-  const enabledElement=document.getElementById("reminder-enabled");
-  enabledElement.checked=true;
+  document.getElementById("reminder-enabled").checked=true;
   const beforeDefault=Date.now();
-  enabledElement.listeners.change();
+  document.getElementById("reminder-enabled").listeners.change();
   const defaultCapture=api.capture();
   assert.ok(defaultCapture.at>=beforeDefault+4*60*1000);
   assert.ok(defaultCapture.at<=beforeDefault+6*60*1000);
-  api.setDate({year:1405,month:10,day:1});
-  const prepared=api.prepare({id:"test-note-1",title:"آزمون",body:"اعلان آزمایشی"},null,defaultCapture);
+  const future=api.toGregorian(1405,10,1);
+  const target=Date.UTC(future.year,future.month,future.day,12,30);
+  const config={enabled:true,at:target};
+  const prepared=api.prepare({id:"test-note-1",title:"آزمون",body:"اعلان آزمایشی"},null,config);
   assert.equal(prepared.reminderEnabled,true);
   assert.equal(prepared.reminderStatus,"pending");
-  assert.ok(prepared.reminderAt>Date.now());
-  // The reminder remains enabled even if the notification plugin rejects scheduling.
-  const savedBeforeScheduling={...prepared};
-  const originalExactCheck=window.LocalNotifications.checkExactNotificationSetting;
-  window.LocalNotifications.checkExactNotificationSetting=async()=>({exact_alarm:"denied"});
-  await assert.rejects(()=>api.apply({...prepared},null,defaultCapture),/دسترسی «آلارم دقیق»/);
-  window.LocalNotifications.checkExactNotificationSetting=originalExactCheck;
-  const originalSchedule=window.LocalNotifications.schedule;
-  window.LocalNotifications.schedule=async()=>{throw new Error("test scheduling failure");};
-  await assert.rejects(()=>api.apply(savedBeforeScheduling,null,defaultCapture),/test scheduling failure/);
-  assert.equal(savedBeforeScheduling.reminderEnabled,true);
-  assert.ok(savedBeforeScheduling.reminderAt>Date.now());
-  window.LocalNotifications.schedule=originalSchedule;
-  const note=await api.apply(prepared,null,defaultCapture);
-  assert.ok(note.reminderAt>Date.now());
+  const note=await api.apply(prepared,null,config);
   assert.equal(scheduled.id,note.reminderNotificationId);
-  assert.equal(scheduled.schedule.at.getTime(),note.reminderAt);
-  assert.equal(scheduled.schedule.allowWhileIdle,true);
+  assert.equal(scheduled.at,note.reminderAt);
+  assert.equal(scheduled.noteId,note.id);
+  assert.equal(note.reminderStatus,"scheduled");
   assert.match(note.reminderText,/۱۴۰۵/);
   api.load(note);
   assert.equal(document.getElementById("reminder-enabled").checked,true);
-  const expectedTehranHour=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Tehran",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date(note.reminderAt)).find(x=>x.type==="hour").value;
-  assert.equal(document.getElementById("reminder-hour").value,expectedTehranHour);
-  document.getElementById("reminder-enabled").checked=false;
-  const cleared=await api.apply({...note},note);
+  const restored=await api.reschedule({...note});
+  assert.equal(restored.reminderStatus,"scheduled");
+  const cleared=await api.apply({...note},note,{enabled:false});
   assert.equal(cancelled,note.reminderNotificationId);
   assert.equal(cleared.reminderAt,undefined);
-  console.log("Jalali calendar and local-notification scheduling tests passed.");
+  await assert.rejects(()=>api.apply({id:"bad-note"},null,{enabled:true,at:Date.now()-1000}),/زمان یادآوری باید در آینده باشد/);
+  console.log("Jalali calendar and native AlarmManager bridge tests passed.");
 })().catch(error=>{console.error(error);process.exitCode=1;});
