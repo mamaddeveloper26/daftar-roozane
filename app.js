@@ -301,7 +301,7 @@
   $("export-backup").addEventListener("click",exportBackup);
   $("restore-input").addEventListener("change",event=>{if(event.target.files[0])restoreBackup(event.target.files[0]);});
   $("reminder-diagnostics").addEventListener("click",async()=>{
-    const report=JSON.stringify(window.DiaryReminder.diagnostics(),null,2);
+    const report=JSON.stringify(await window.DiaryReminder.diagnostics(),null,2);
     try {
       if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(report);
       else {
