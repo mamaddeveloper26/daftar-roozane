@@ -19,7 +19,7 @@ self.addEventListener("fetch", event => {
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
     const url = new URL(request.url);
-    const appShell = request.mode === "navigate" || url.pathname.endsWith(".html") || /\\.(js|css)$/.test(url.pathname);
+    const appShell = request.mode === "navigate" || url.pathname.endsWith(".html") || /\.(js|css)$/.test(url.pathname);
     if (appShell) {
       try {
         const response = await fetch(request);
