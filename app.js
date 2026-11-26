@@ -300,6 +300,23 @@
   $("close-image").addEventListener("click",()=>el.dialog.close());
   $("export-backup").addEventListener("click",exportBackup);
   $("restore-input").addEventListener("change",event=>{if(event.target.files[0])restoreBackup(event.target.files[0]);});
+  $("reminder-diagnostics").addEventListener("click",async()=>{
+    const report=JSON.stringify(window.DiaryReminder.diagnostics(),null,2);
+    try {
+      if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(report);
+      else {
+        const field=document.createElement("textarea");field.value=report;field.style.position="fixed";field.style.opacity="0";
+        document.body.appendChild(field);field.select();
+        if(!document.execCommand("copy"))throw new Error("copy failed");
+        field.remove();
+      }
+      showToast("گزارش فنی کپی شد؛ آن را همین‌جا بفرست");
+    } catch(error) {
+      const field=document.createElement("textarea");field.value=report;field.style.position="fixed";field.style.opacity="1";
+      document.body.appendChild(field);field.focus();field.select();
+      showToast("گزارش آماده است؛ متن انتخاب‌شده را کپی کن");
+    }
+  });
 
   async function init(){
     $("today-label").textContent="امروز · "+todayLabel(new Date());
