@@ -82,14 +82,50 @@
     for(let i=0;i<id.length;i++){hash^=id.charCodeAt(i);hash=Math.imul(hash,16777619);}
     return ((hash>>>0)&0x7fffffff)||1;
   }
+  const DIAG_KEY = "diary-reminder-diagnostics-v1";
+  function recordDiagnostic(step, status, detail) {
+    const entry = {time:new Date().toISOString(),step,status,detail:detail??null};
+    try {
+      const items=JSON.parse(localStorage.getItem(DIAG_KEY)||"[]");
+      items.push(entry);
+      localStorage.setItem(DIAG_KEY,JSON.stringify(items.slice(-80)));
+    } catch (_) {}
+    console.info("[Reminder diagnostic]",entry);
+  }
+  function compact(value) {
+    try {
+      if(value instanceof Error)return {name:value.name,message:value.message};
+      const json=JSON.stringify(value);
+      return json && json.length>1800 ? json.slice(0,1800)+"…" : (value??null);
+    } catch (_) { return String(value); }
+  }
+  function diagnosticReport() {
+    let history=[];
+    try { history=JSON.parse(localStorage.getItem(DIAG_KEY)||"[]"); } catch (_) {}
+    const plugin=window.LocalNotifications;
+    let platform="unknown";
+    try { platform=window.Capacitor?.getPlatform?.()||"unknown"; } catch (_) {}
+    return {
+      generatedAt:new Date().toISOString(),
+      userAgent:navigator.userAgent,
+      platform,
+      pluginLoaded:!!plugin,
+      pluginMethods:plugin?Object.keys(plugin).sort():[],
+      exactAlarmCheckAvailable:typeof plugin?.checkExactNotificationSetting==="function",
+      appScripts:[...document.scripts].map(s=>s.src).filter(s=>/app\.js|reminders\.js|notification-bridge/.test(s)),
+      history
+    };
+  }
   function withTimeout(promise, label, ms=12000) {
     // The lightweight Node test harness has no timer APIs; production Android does.
-    if(typeof setTimeout!=="function") return Promise.resolve(promise);
+    const tracked=Promise.resolve(promise);
+    if(typeof setTimeout!=="function") return tracked.then(value=>{recordDiagnostic(label,"success",compact(value));return value;},error=>{recordDiagnostic(label,"error",compact(error));throw error;});
     let timer;
-    return Promise.race([
-      Promise.resolve(promise),
+    const raced=Promise.race([
+      tracked,
       new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" بیش از "+Math.round(ms/1000)+" ثانیه پاسخ نداد")),ms);})
-    ]).finally(()=>{if(typeof clearTimeout==="function")clearTimeout(timer);});
+    ]);
+    return raced.then(value=>{recordDiagnostic(label,"success",compact(value));return value;},error=>{recordDiagnostic(label,"error",compact(error));throw error;}).finally(()=>{if(typeof clearTimeout==="function")clearTimeout(timer);});
   }
   async function pluginWithPermissions() {
     const plugin=window.LocalNotifications;
@@ -157,6 +193,7 @@
   async function scheduleAt(note, at, plugin) {
     const id=note.reminderNotificationId || idFor(note.id);
     let result;
+    recordDiagnostic("schedule-input","started",{id,at:new Date(at).toISOString(),now:new Date().toISOString(),platform:window.Capacitor?.getPlatform?.()||"unknown"});
     try { result=await withTimeout(plugin.schedule({notifications:[{
       id:id,
       title:note.title || "یادآوری دفترچه روزانه",
@@ -184,7 +221,17 @@
     return note;
   }
   async function reschedule(note) {
-    if(!note || !note.reminderAt || note.reminderAt<=Date.now()) return note;
+    if(!note || !note.reminderAt) return note;
+    if(note.reminderAt<=Date.now()) {
+      note.reminderEnabled=true;
+      if(note.reminderStatus==="pending") {
+        note.reminderStatus="expired";
+        note.reminderError="زمان انتخاب‌شده برای یادآوری گذشته است";
+      }
+      recordDiagnostic("recovery-skipped","expired",{noteId:note.id,reminderAt:note.reminderAt,now:Date.now()});
+      return note;
+    }
+    recordDiagnostic("recovery-started","started",{noteId:note.id,reminderAt:note.reminderAt,now:Date.now()});
     if(!window.LocalNotifications) {
       note.reminderEnabled=true;
       note.reminderStatus="error";
@@ -265,7 +312,7 @@
   function render(note) {
     if(!note || (!note.reminderEnabled && !note.reminderAt)) return "";
     const text=String(note.reminderText || (note.reminderError || "یادآوری فعال است")).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-    const state=note.reminderStatus==="scheduled"?"":" · "+(note.reminderStatus==="permission_required"?"نیاز به اجازه اعلان":note.reminderStatus==="error"?"نیازمند اصلاح":"در انتظار ثبت");
+    const labels={pending:"در صف ثبت",permission_required:"نیاز به اجازه اعلان",error:"نیازمند اصلاح",expired:"زمان یادآوری گذشته",scheduled:""}; const state=note.reminderStatus==="scheduled"?"":" · "+(labels[note.reminderStatus]||"وضعیت نامشخص");
     return '<div class="entry-reminder">🔔 یادآوری: ' + text + state + '</div>';
   }
   function init() {
@@ -292,6 +339,6 @@
     $("calendar-confirm").addEventListener("click",()=>{if(draft){setDate(draft);dialog.close();}});
     reset();
   }
-  window.DiaryReminder={init,reset,load,capture,prepare,apply,cancel,render,reschedule,toGregorian,monthLength,setDate};
+  window.DiaryReminder={init,reset,load,capture,prepare,apply,cancel,render,reschedule,toGregorian,monthLength,setDate,diagnostics:diagnosticReport,clearDiagnostics:()=>localStorage.removeItem(DIAG_KEY)};
   init();
 })();
