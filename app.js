@@ -264,18 +264,23 @@
         reminderConfig.error=reminderCaptureError.message||"خواندن تاریخ و ساعت یادآوری ناموفق بود";
       }
       window.DiaryReminder.prepare(note,old,reminderConfig);
+      // Save the note first so its text is never lost, but keep the editor open
+      // until Android has acknowledged the notification schedule. Navigating
+      // away before this async native call finishes made the card look stuck
+      // in "pending" and encouraged users to close the app mid-registration.
       await persist(note);
-      navigate("home");
-      showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
       if(reminderCaptureError){
+        navigate("home");
         showToast("یادداشت ذخیره شد؛ خواندن تنظیم یادآوری ناموفق بود");
         return;
       }
-      // Finish notification scheduling before leaving this save operation.
-      // The note is already safely stored above, so reminder failure never loses it.
+      const originalSaveLabel=el.save.textContent;
+      if(reminderConfig.enabled)el.save.textContent="در حال ثبت یادآوری…";
       try {
         const updatedNote=await window.DiaryReminder.apply(note,old,reminderConfig);
         await persist(updatedNote);
+        navigate("home");
+        showToast(old?"یادداشت ویرایش شد":"یادداشت ذخیره شد");
         if(reminderConfig.enabled)showToast("یادآوری ثبت شد");
       } catch(reminderError) {
         console.error("Reminder scheduling failed after note save",reminderError);
@@ -286,7 +291,10 @@
           try { await persist(note); }
           catch(saveError) { console.error("Could not save reminder failure state",saveError); }
         }
+        navigate("home");
         showToast("یادداشت ذخیره شد؛ ثبت یادآوری ناموفق بود");
+      } finally {
+        el.save.textContent=originalSaveLabel;
       }
     }catch(error){showToast(error.message||"ذخیره انجام نشد؛ فضای خالی گوشی را بررسی کن");console.error(error);}
     finally{el.save.disabled=false;}
