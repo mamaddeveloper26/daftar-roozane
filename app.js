@@ -97,8 +97,26 @@
   async function loadNotes(){
     const loaded=await storeRequest("readonly","all");
     notes=loaded.map(note=>({...note}));
-    notes.sort((a,b)=>b.createdAt-a.createdAt);render();
-    for(const note of notes){if(note.reminderAt>Date.now()){try{const restored=await window.DiaryReminder.reschedule(note);if(restored)await storeRequest("readwrite","put",restored);}catch(error){note.reminderStatus="error";note.reminderError=error.message||"بازیابی اعلان ناموفق بود";await storeRequest("readwrite","put",note);console.warn("Pending reminder recovery failed",error);}}}
+    notes.sort((a,b)=>b.createdAt-a.createdAt);
+    // Render once immediately, then render again after every pending reminder
+    // has been reconciled with the native notification plugin.
+    render();
+    for(const note of notes){
+      if(note.reminderAt>Date.now()){
+        try{
+          const restored=await window.DiaryReminder.reschedule(note);
+          if(restored)await storeRequest("readwrite","put",restored);
+        }catch(error){
+          note.reminderStatus="error";
+          note.reminderError=error.message||"بازیابی اعلان ناموفق بود";
+          await storeRequest("readwrite","put",note);
+          console.warn("Pending reminder recovery failed",error);
+        }
+      }
+    }
+    // The first render can show the old persisted "pending" state.
+    // Refresh cards so the final scheduled/error state is visible.
+    render();
   }
   async function persist(note){await storeRequest("readwrite","put",note);const index=notes.findIndex(n=>n.id===note.id);if(index>=0)notes[index]=note;else notes.push(note);render();}
   async function removeNote(id){const note=notes.find(n=>n.id===id);if(note)await window.DiaryReminder.cancel(note);await storeRequest("readwrite","delete",id);notes=notes.filter(n=>n.id!==id);render();}
