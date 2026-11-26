@@ -16,9 +16,15 @@ public final class NativeReminderAlarms {
         int id = item.getInt("id");
         long at = item.getLong("at");
         if (at <= System.currentTimeMillis()) throw new IllegalArgumentException("زمان یادآوری گذشته است");
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        boolean saved = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString("alarm_" + id, item.toString()).commit();
-        arm(context, item);
+        if (!saved) throw new IllegalStateException("ذخیره داخلی یادآوری انجام نشد");
+        try {
+            arm(context, item);
+        } catch (Exception error) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("alarm_" + id).commit();
+            throw error;
+        }
     }
 
     static void arm(Context context, JSONObject item) throws Exception {
